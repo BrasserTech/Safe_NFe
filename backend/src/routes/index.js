@@ -21,6 +21,7 @@ router.use("/auth", authRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/", invoiceRoutes);
 router.use("/companies", companyRoutes);
+router.use("/empresas", companyRoutes);
 router.use("/reports", reportRoutes);
 router.use("/accountant", accountantRoutes);
 router.use("/settings", settingsRoutes);
