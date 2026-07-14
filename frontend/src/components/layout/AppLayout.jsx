@@ -17,7 +17,7 @@ export function AppLayout() {
   return (
     <div className="min-h-screen bg-slate-50 pb-20 lg:pb-0">
       <Sidebar />
-      <main className="lg:pl-72">
+      <main className="lg:pl-20">
         <Header />
         <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <Outlet />

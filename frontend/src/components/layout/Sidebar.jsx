@@ -1,4 +1,4 @@
-import { Building2, FileSearch, FileText, History, Home, Link2, Users } from "lucide-react";
+import { Building2, FileSearch, FileText, History, Home, Link2 } from "lucide-react";
 import React from "react";
 import { NavLink } from "react-router-dom";
 
@@ -16,35 +16,34 @@ const links = [
 
 export function Sidebar() {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-navy text-white lg:flex">
-      <div className="flex h-20 items-center gap-3 px-6">
-        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-ocean font-black">FV</span>
-        <div>
+    <aside className="group fixed inset-y-0 left-0 z-30 hidden w-20 flex-col overflow-hidden bg-navy text-white transition-[width] duration-300 hover:w-72 lg:flex">
+      <div className="flex h-20 items-center gap-3 px-5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-ocean font-black">FV</span>
+        {/* Textos ficam ocultos no estado recolhido para manter a barra limpa.
+            No hover, a largura aumenta e os labels aparecem sem remontar rotas. */}
+        <div className="min-w-0 whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <strong className="block text-lg">FiscalVault</strong>
           <span className="text-xs text-blue-100">Cofre fiscal eletronico</span>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {links.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             end={to === "/app"}
+            title={label}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-md px-4 py-3 text-sm font-semibold transition ${
                 isActive ? "bg-white text-navy" : "text-blue-50 hover:bg-white/10"
               }`
             }
           >
-            <Icon size={18} />
-            {label}
+            <Icon className="shrink-0" size={18} />
+            <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">{label}</span>
           </NavLink>
         ))}
       </nav>
-      <div className="m-4 rounded-lg bg-white/10 p-4 text-sm text-blue-50">
-        <Users className="mb-3" size={20} />
-        Cofre local com certificados, captura, documentos, downloads e auditoria.
-      </div>
     </aside>
   );
 }
