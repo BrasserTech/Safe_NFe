@@ -181,7 +181,14 @@ export async function requestFiscalDocuments(kind, { company, certificate, paylo
     });
 
     const text = await response.text();
-    const responseBody = text ? JSON.parse(text) : {};
+    let responseBody = {};
+    try {
+      responseBody = text ? JSON.parse(text) : {};
+    } catch (_error) {
+      const parseError = new Error("Provedor fiscal retornou resposta invalida. Esperado JSON.");
+      parseError.statusCode = 502;
+      throw parseError;
+    }
 
     // Quando o provedor retorna erro HTTP, mantemos a mensagem dele para que
     // o usuario ou suporte saiba se faltou token, certificado, permissao etc.

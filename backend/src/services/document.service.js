@@ -13,6 +13,15 @@ function onlyDigits(value = "") {
   return String(value).replace(/\D/g, "");
 }
 
+function safeFilename(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "documento";
+}
+
 function firstTag(xml = "", tag) {
   // Busca o primeiro valor de uma tag do XML. Exemplo: firstTag(xml, "nNF")
   // encontra o numero da nota dentro de <nNF>123</nNF>.
@@ -410,14 +419,14 @@ export async function getDocumentFile(id, type) {
       throw error;
     }
     return {
-      filename: `${document.type}-${document.number}.xml`,
+      filename: `${safeFilename(document.type)}-${safeFilename(document.number)}.xml`,
       contentType: "application/xml",
       buffer: Buffer.from(document.xml, "utf8")
     };
   }
 
   return {
-    filename: `${document.type}-${document.number}.pdf`,
+    filename: `${safeFilename(document.type)}-${safeFilename(document.number)}.pdf`,
     contentType: "application/pdf",
     buffer: await generateDanfePdfBuffer(document)
   };
@@ -426,6 +435,19 @@ export async function getDocumentFile(id, type) {
 // Gera ZIP em memoria para download em lote. Para volumes altos, migrar para
 // streaming direto na response ou job assincrono com storage.
 export async function createZip(documentIds, type) {
+  if (!Array.isArray(documentIds) || documentIds.length === 0) {
+    const error = new Error("Selecione pelo menos um documento para gerar ZIP.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const maxBatch = Number(process.env.DOCUMENT_ZIP_MAX_ITEMS || 200);
+  if (documentIds.length > maxBatch) {
+    const error = new Error(`Selecione no maximo ${maxBatch} documentos por ZIP.`);
+    error.statusCode = 413;
+    throw error;
+  }
+
   const data = await readStore();
   const selected = data.documents.filter((item) => documentIds.includes(item.id));
 
@@ -439,11 +461,11 @@ export async function createZip(documentIds, type) {
 
     Promise.all(selected.map(async (document) => {
       if (type === "xml" && document.xml) {
-        archive.append(document.xml, { name: `${document.type}-${document.number}.xml` });
+        archive.append(document.xml, { name: `${safeFilename(document.type)}-${safeFilename(document.number)}.xml` });
       }
 
       if (type === "pdf") {
-        archive.append(await generateDanfePdfBuffer(document), { name: `${document.type}-${document.number}.pdf` });
+        archive.append(await generateDanfePdfBuffer(document), { name: `${safeFilename(document.type)}-${safeFilename(document.number)}.pdf` });
       }
     })).then(() => archive.finalize()).catch(reject);
   });

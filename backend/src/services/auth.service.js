@@ -44,6 +44,12 @@ export async function login({ email, username, password }) {
 // Cadastro simples para uso operacional. Mantem hash bcrypt no armazenamento
 // local e pode ser migrado diretamente para Prisma depois.
 export async function register(payload) {
+  if (process.env.ALLOW_PUBLIC_REGISTRATION !== "true") {
+    const error = new Error("Cadastro publico desabilitado. Solicite a criacao de usuario a um administrador.");
+    error.statusCode = 403;
+    throw error;
+  }
+
   const password = payload.password || payload.senha;
   if (!password || password.length < 6) {
     const error = new Error("A senha deve ter pelo menos 6 caracteres.");
@@ -65,7 +71,9 @@ export async function register(payload) {
       email,
       username: payload.username || email,
       passwordHash: await bcrypt.hash(password, 10),
-      role: payload.role || "ADMIN",
+      // Nunca aceite role enviado pelo cadastro publico. Isso evita que alguem
+      // crie uma conta ADMIN apenas manipulando o payload no navegador.
+      role: "USER",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

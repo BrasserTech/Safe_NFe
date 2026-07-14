@@ -10,6 +10,7 @@ import documentRoutes from "./document.routes.js";
 import invoiceRoutes from "./invoice.routes.js";
 import reportRoutes from "./report.routes.js";
 import settingsRoutes from "./settings.routes.js";
+import { requireAuth } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
@@ -25,6 +26,9 @@ router.get("/health", (_req, res) => {
 // Rotas agrupadas por dominio. As rotas legadas em portugues foram mantidas
 // para compatibilidade com as telas existentes.
 router.use("/auth", authRoutes);
+// A partir daqui todas as rotas exigem JWT. Isso impede acesso direto via curl
+// a empresas, certificados, XMLs, PDFs e capturas sem login.
+router.use(requireAuth);
 router.use("/dashboard", dashboardRoutes);
 router.use("/", invoiceRoutes);
 router.use("/documents", documentRoutes);

@@ -218,7 +218,10 @@ export async function saveCertificate(companyId, file, password) {
   const extension = path.extname(file.originalname).toLowerCase();
   const filename = `${companyId}-${Date.now()}${extension}`;
   const destination = path.join(storageRoot, filename);
-  await fs.writeFile(destination, file.buffer);
+  // mode 0o600 restringe leitura/escrita ao usuario do processo em sistemas
+  // compatíveis. Em Windows, a proteção principal continua sendo pasta local
+  // fora do Git e criptografia da senha do certificado.
+  await fs.writeFile(destination, file.buffer, { mode: 0o600 });
 
   const record = {
     id: crypto.randomUUID(),
@@ -267,7 +270,8 @@ function publicCertificate(record) {
     id: record.id,
     empresaId: record.companyId,
     companyId: record.companyId,
-    caminhoArquivo: record.filePath,
+    // Nao exponha filePath/caminhoArquivo para o frontend. Caminho local pode
+    // revelar estrutura do servidor e facilitar ataques direcionados.
     titular: record.titular,
     documento: record.documento,
     validade: record.validade,

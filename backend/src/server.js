@@ -1,5 +1,7 @@
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import express from "express";
+import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
 import { errorHandler, notFound } from "./middlewares/errorHandler.js";
@@ -22,7 +24,21 @@ app.use(cors({
     return callback(new Error(`Origem nao permitida pelo CORS: ${origin}`));
   }
 }));
-app.use(express.json());
+// Headers de seguranca padrao: reduz risco de sniffing, clickjacking e exposicao
+// de detalhes do Express em respostas HTTP.
+app.use(helmet());
+
+// Limita JSON recebido. Sem isso, um atacante poderia enviar payload enorme e
+// consumir memoria do processo.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "1mb" }));
+
+// Rate limit geral para reduzir abuso de API. Mantem folga para uso local.
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.API_RATE_LIMIT || 600),
+  standardHeaders: true,
+  legacyHeaders: false
+}));
 app.use(morgan("dev"));
 
 app.use("/api", routes);

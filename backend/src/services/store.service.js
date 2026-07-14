@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import bcrypt from "bcryptjs";
 
 const dataRoot = path.resolve(process.cwd(), "storage");
 const dataFile = path.join(dataRoot, "safe-nfe-data.json");
@@ -11,18 +12,34 @@ function now() {
   return new Date().toISOString();
 }
 
+function adminSeedConfig() {
+  const email = process.env.ADMIN_EMAIL || "admin@safe-nfe.local";
+  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (process.env.NODE_ENV === "production" && !passwordHash && !password) {
+    throw new Error("Configure ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD antes da primeira execucao em producao.");
+  }
+
+  return {
+    email,
+    passwordHash: passwordHash || bcrypt.hashSync(password || "123456", 10)
+  };
+}
+
 // Seed inicial criado automaticamente na primeira execucao.
-// Mantem somente o usuario admin necessario para acesso inicial.
-// Senha do admin: 123456. Trocar em ambiente real.
+// Mantem somente o usuario admin necessario para acesso inicial. Em producao,
+// exige ADMIN_PASSWORD_HASH ou ADMIN_PASSWORD para evitar senha padrao.
 function initialData() {
+  const admin = adminSeedConfig();
   return {
     users: [
       {
         id: "usr-admin",
         name: "Administrador",
-        email: "admin@safe-nfe.local",
+        email: admin.email,
         username: "admin",
-        passwordHash: "$2b$10$VfNelyEf0xCT28iIHbWspui1EIDv.bEc59v4Dggv/CspPrgQ2Xjum",
+        passwordHash: admin.passwordHash,
         role: "ADMIN",
         createdAt: now(),
         updatedAt: now()

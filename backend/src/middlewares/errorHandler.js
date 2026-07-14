@@ -8,9 +8,10 @@ export function errorHandler(err, req, res, _next) {
   const message = err.code === "LIMIT_FILE_SIZE"
     ? "O arquivo do certificado ultrapassa o limite permitido."
     : err.message;
+  const exposeStack = process.env.DEBUG_ERRORS === "true";
 
   res.status(statusCode).json({
     message,
-    stack: process.env.NODE_ENV === "production" ? undefined : err.stack
+    stack: exposeStack ? err.stack : undefined
   });
 }

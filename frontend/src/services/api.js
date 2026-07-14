@@ -11,3 +11,18 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("safe-nfe-token");
+      localStorage.removeItem("safe-nfe-user");
+      if (window.location.pathname.startsWith("/app")) {
+        window.location.href = "/login";
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);

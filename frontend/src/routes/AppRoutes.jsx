@@ -11,13 +11,18 @@ import { LandingPage } from "../pages/LandingPage.jsx";
 import { Login } from "../pages/Login.jsx";
 import { Register } from "../pages/Register.jsx";
 
+function ProtectedRoute() {
+  const token = localStorage.getItem("safe-nfe-token");
+  return token ? <AppLayout /> : <Navigate to="/login" replace />;
+}
+
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/cadastro" element={<Register />} />
-      <Route path="/app" element={<AppLayout />}>
+      <Route path="/app" element={<ProtectedRoute />}>
         <Route index element={<Dashboard />} />
         {/* Estrutura operacional do Safe NFe: os documentos fiscais ficam
             centralizados em Documentos, e certificados ficam dentro de
