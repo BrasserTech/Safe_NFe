@@ -2,10 +2,14 @@ import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../components/layout/AppLayout.jsx";
 import { Accountant } from "../pages/Accountant.jsx";
+import { Audit } from "../pages/Audit.jsx";
+import { Capture } from "../pages/Capture.jsx";
 import { Companies } from "../pages/Companies.jsx";
 import { Ctes } from "../pages/Ctes.jsx";
 import { Dashboard } from "../pages/Dashboard.jsx";
+import { Documents } from "../pages/Documents.jsx";
 import { Invoices } from "../pages/Invoices.jsx";
+import { Integrations } from "../pages/Integrations.jsx";
 import { LandingPage } from "../pages/LandingPage.jsx";
 import { Login } from "../pages/Login.jsx";
 import { Manifestation } from "../pages/Manifestation.jsx";
@@ -21,12 +25,17 @@ export function AppRoutes() {
       <Route path="/cadastro" element={<Register />} />
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Dashboard />} />
-        <Route path="notas" element={<Invoices />} />
+        <Route path="notas" element={<Documents />} />
+        <Route path="documentos" element={<Documents />} />
         <Route path="ctes" element={<Ctes />} />
+        <Route path="captura" element={<Capture />} />
         <Route path="manifestacao" element={<Manifestation />} />
         <Route path="empresas" element={<Companies />} />
+        <Route path="certificados" element={<Navigate to="/app/empresas" replace />} />
         <Route path="relatorios" element={<Reports />} />
         <Route path="contador" element={<Accountant />} />
+        <Route path="integracoes" element={<Integrations />} />
+        <Route path="auditoria" element={<Audit />} />
         <Route path="configuracoes" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

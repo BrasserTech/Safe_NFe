@@ -7,7 +7,21 @@ import routes from "./routes/index.js";
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",")
+  .map((origin) => origin.trim());
+
+// CORS aceita localhost e 127.0.0.1 porque o Vite sobe em 127.0.0.1 por padrao
+// neste projeto, enquanto a API e documentada em localhost.
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`Origem nao permitida pelo CORS: ${origin}`));
+  }
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 

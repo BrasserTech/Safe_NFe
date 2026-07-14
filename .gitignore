@@ -20,6 +20,9 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Local runtime data
+backend/storage/
+
 # Prisma
 backend/prisma/dev.db
 backend/prisma/dev.db-journal

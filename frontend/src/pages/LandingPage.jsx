@@ -46,7 +46,7 @@ export function LandingPage() {
               <span className="rounded-md bg-emerald-400/20 px-2 py-1 text-xs font-bold text-emerald-100">Online</span>
             </div>
             <div className="grid gap-3">
-              {["18.429 documentos salvos", "36 manifestacoes pendentes", "R$ 2,36 mi em junho", "3 empresas vinculadas"].map((item) => (
+              {["Cadastre empresas reais", "Vincule certificado A1", "Capture e armazene XML/PDF", "Acompanhe auditoria"].map((item) => (
                 <div key={item} className="rounded-md bg-white p-4 font-semibold text-navy">{item}</div>
               ))}
             </div>
@@ -59,27 +59,16 @@ export function LandingPage() {
           <article key={label} className="rounded-lg border border-slate-200 p-6">
             <Icon className="mb-4 text-ocean" />
             <h2 className="text-lg font-bold text-navy">{label}</h2>
-            <p className="mt-2 text-sm text-slate-600">Fluxos preparados para crescer da operacao mockada ate integracoes fiscais reais.</p>
+            <p className="mt-2 text-sm text-slate-600">Fluxos preparados para operacao com dados cadastrados pelo usuario.</p>
           </article>
         ))}
-      </section>
-
-      <section className="bg-slate-50 py-16">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 lg:grid-cols-3">
-          {["Grupo Horizonte", "Contabil Prime", "ViaSul Distribuidora"].map((client) => (
-            <div key={client} className="rounded-lg border border-slate-200 bg-white p-6">
-              <p className="text-sm text-slate-500">Cliente ficticio</p>
-              <strong className="mt-1 block text-xl text-navy">{client}</strong>
-            </div>
-          ))}
-        </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-16">
         <div className="rounded-lg bg-navy p-8 text-white md:flex md:items-center md:justify-between">
           <div>
-            <h2 className="text-2xl font-black">Plano Profissional FiscalVault</h2>
-            <p className="mt-2 text-blue-100">Documentos ilimitados em ambiente de demonstracao e arquitetura preparada para producao.</p>
+            <h2 className="text-2xl font-black">Comece com seus dados reais</h2>
+            <p className="mt-2 text-blue-100">Cadastre uma empresa, vincule o certificado e valide o fluxo fiscal.</p>
           </div>
           <Link to="/cadastro" className="mt-6 inline-flex md:mt-0"><Button>Comecar agora</Button></Link>
         </div>

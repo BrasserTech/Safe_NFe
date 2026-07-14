@@ -29,8 +29,24 @@ model Company {
   status             CompanyStatus @default(ACTIVE)
   users              User[]
   documents          FiscalDocument[]
+  certificates       Certificate[]
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+}
+
+model Certificate {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  type              String   @default("A1")
+  holder            String
+  document          String
+  expiresAt         DateTime
+  status            String
+  storagePath       String
+  encryptedPassword String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model FiscalDocument {
@@ -51,8 +67,19 @@ model FiscalDocument {
   manifestStatus     ManifestStatus      @default(PENDING)
   xmlStoragePath     String?
   danfeStoragePath   String?
+  source             String?
+  nsu                String?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  type      String
+  title     String
+  detail    String
+  metadata  Json?
+  createdAt DateTime @default(now())
 }
 
 enum UserRole {

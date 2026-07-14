@@ -2,18 +2,23 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import forge from "node-forge";
-import { companies } from "../mocks/companies.mock.js";
+import { addAuditLog } from "./audit.service.js";
+import { createCompany, getCompanyById } from "./company.service.js";
+import { dataRoot, readStore, updateStore } from "./store.service.js";
 
-const savedCertificates = new Map();
 const allowedExtensions = new Set([".pfx", ".p12"]);
-const storageRoot = path.resolve(process.cwd(), "storage", "certificates");
+const storageRoot = path.join(dataRoot, "certificates");
 
+// Certificados fiscais usam apenas digitos para comparacao entre CNPJ do
+// cadastro e documento encontrado dentro do A1.
 function onlyDigits(value = "") {
   return String(value).replace(/\D/g, "");
 }
 
-function findCompany(companyId) {
-  const company = companies.find((item) => item.id === companyId || String(item.chave) === companyId);
+// Busca a empresa no armazenamento antes de qualquer operacao sensivel com
+// certificado. Isso impede salvar certificado solto sem vinculo fiscal.
+async function findCompany(companyId) {
+  const company = await getCompanyById(companyId);
 
   if (!company) {
     const error = new Error("Empresa nao encontrada.");
@@ -24,6 +29,8 @@ function findCompany(companyId) {
   return company;
 }
 
+// Garante que o upload recebido e um certificado A1 nos formatos esperados.
+// A senha e validada depois ao abrir o PKCS#12.
 function assertCertificateFile(file) {
   if (!file) {
     const error = new Error("Envie um certificado digital.");
@@ -39,6 +46,8 @@ function assertCertificateFile(file) {
   }
 }
 
+// Abre o arquivo PKCS#12. Erros aqui normalmente significam senha incorreta,
+// arquivo corrompido ou arquivo que nao e um certificado A1 valido.
 function readPkcs12(buffer, password) {
   try {
     const der = forge.util.createBuffer(buffer.toString("binary"), "binary");
@@ -52,6 +61,7 @@ function readPkcs12(buffer, password) {
   }
 }
 
+// Extrai o primeiro certificado dentro do container PKCS#12.
 function getCertificateBag(p12) {
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] || [];
   const bag = certBags.find((item) => item.cert);
@@ -66,6 +76,8 @@ function getCertificateBag(p12) {
   return bag.cert;
 }
 
+// Alguns certificados usam nomes diferentes para os mesmos atributos.
+// Esta funcao tenta as alternativas conhecidas em ordem.
 function subjectValue(certificate, names) {
   for (const name of names) {
     const field = certificate.subject.getField(name);
@@ -77,6 +89,8 @@ function subjectValue(certificate, names) {
   return "";
 }
 
+// O CNPJ/CPF pode aparecer em atributos ou extensoes do certificado.
+// A extração e conservadora: procura primeiro 14 digitos, depois 11.
 function extractDocument(certificate) {
   const subjectText = certificate.subject.attributes.map((attribute) => attribute.value).join(" ");
   const extensionText = certificate.extensions
@@ -89,6 +103,7 @@ function extractDocument(certificate) {
   return cnpjMatch?.[0] || cpfMatch?.[0] || "";
 }
 
+// Converte o certificado lido pelo node-forge para o formato usado pela API.
 function certificateInfo(certificate) {
   const now = new Date();
   const expiresAt = certificate.validity.notAfter;
@@ -102,6 +117,7 @@ function certificateInfo(certificate) {
   };
 }
 
+// Valida arquivo e senha e devolve metadados seguros para exibir na tela.
 function validateCertificatePayload(file, password) {
   assertCertificateFile(file);
 
@@ -116,6 +132,8 @@ function validateCertificatePayload(file, password) {
   return certificateInfo(certificate);
 }
 
+// Criptografa a senha do certificado para armazenamento local.
+// Em producao, preferir KMS/secret manager e rotacao de chave.
 function encryptPassword(password) {
   const secret = process.env.CERTIFICATE_SECRET || process.env.JWT_SECRET || "fiscalvault-development-secret";
   const key = crypto.createHash("sha256").update(secret).digest();
@@ -127,18 +145,35 @@ function encryptPassword(password) {
   return [iv.toString("hex"), tag.toString("hex"), encrypted.toString("hex")].join(":");
 }
 
+// Teste vinculado a uma empresa: valida o certificado e confirma que a empresa
+// existe antes de liberar a resposta.
 export function testCertificate(companyId, file, password) {
-  findCompany(companyId);
+  return findCompany(companyId).then(() => {
+    const info = validateCertificatePayload(file, password);
+
+    return {
+      valid: info.status === "valido",
+      certificate: info
+    };
+  });
+}
+
+// Validação avulsa usada pela tela Certificados antes do vínculo definitivo.
+export function validateCertificate(file, password) {
   const info = validateCertificatePayload(file, password);
 
   return {
     valid: info.status === "valido",
-    certificate: info
+    certificate: info,
+    cnpj: info.documento,
+    expiration_date: info.validade
   };
 }
 
+// Salva o arquivo A1, criptografa a senha e atualiza o status da empresa.
+// Esta funcao e o ponto principal para integrar storage S3 futuramente.
 export async function saveCertificate(companyId, file, password) {
-  const company = findCompany(companyId);
+  const company = await findCompany(companyId);
   const info = validateCertificatePayload(file, password);
 
   if (info.status === "vencido") {
@@ -167,9 +202,10 @@ export async function saveCertificate(companyId, file, password) {
   await fs.writeFile(destination, file.buffer);
 
   const record = {
-    empresaId: companyId,
-    caminhoArquivo: destination,
-    senhaCriptografada: encryptPassword(password),
+    id: crypto.randomUUID(),
+    companyId: company.id,
+    filePath: destination,
+    encryptedPassword: encryptPassword(password),
     titular: info.titular,
     documento: info.documento,
     validade: info.validade,
@@ -178,39 +214,93 @@ export async function saveCertificate(companyId, file, password) {
     criadoEm: new Date().toISOString()
   };
 
-  savedCertificates.set(companyId, record);
+  await updateStore((data) => {
+    data.certificates = data.certificates.filter((item) => item.companyId !== company.id);
+    data.certificates.unshift(record);
+    data.companies = data.companies.map((item) => item.id === company.id
+      ? {
+          ...item,
+          certificateLabel: `A1 valido ate ${new Intl.DateTimeFormat("pt-BR").format(new Date(record.validade))}`,
+          status: "Ativa",
+          updatedAt: new Date().toISOString()
+        }
+      : item);
+    return record;
+  });
+
+  await addAuditLog({
+    title: "Certificado vinculado",
+    detail: `${company.legalName} | validade ${new Intl.DateTimeFormat("pt-BR").format(new Date(record.validade))}`,
+    type: "certificate",
+    metadata: { companyId: company.id, certificateId: record.id }
+  });
 
   return {
     message: "Certificado salvo com sucesso.",
-    certificate: {
-      empresaId: record.empresaId,
-      caminhoArquivo: record.caminhoArquivo,
-      titular: record.titular,
-      documento: record.documento,
-      validade: record.validade,
-      tipo: record.tipo,
-      status: record.status,
-      criadoEm: record.criadoEm
-    }
+    certificate: publicCertificate(record)
   };
 }
 
-export function getCurrentCertificate(companyId) {
-  findCompany(companyId);
-  const record = savedCertificates.get(companyId);
-
-  if (!record) {
-    return null;
-  }
-
+// Define o formato publico do certificado. Campos secretos como senha
+// criptografada nunca devem sair pela API.
+function publicCertificate(record) {
   return {
-    empresaId: record.empresaId,
-    caminhoArquivo: record.caminhoArquivo,
+    id: record.id,
+    empresaId: record.companyId,
+    companyId: record.companyId,
+    caminhoArquivo: record.filePath,
     titular: record.titular,
     documento: record.documento,
     validade: record.validade,
     tipo: record.tipo,
     status: record.status,
     criadoEm: record.criadoEm
+  };
+}
+
+// Retorna o certificado ativo da empresa selecionada.
+export async function getCurrentCertificate(companyId) {
+  const company = await findCompany(companyId);
+  const data = await readStore();
+  const record = data.certificates.find((item) => item.companyId === company.id);
+
+  if (!record) {
+    return null;
+  }
+
+  return publicCertificate(record);
+}
+
+// Lista certificados para o painel operacional.
+export async function listCertificates() {
+  const data = await readStore();
+  return data.certificates.map(publicCertificate);
+}
+
+// Fluxo auxiliar: cria a empresa usando o CNPJ do certificado e ja vincula o A1.
+// Útil quando o usuário começa pelo certificado em vez do cadastro manual.
+export async function createCompanyFromCertificate(file, password, payload = {}) {
+  const info = validateCertificatePayload(file, password);
+
+  if (!info.documento || info.documento.length !== 14) {
+    const error = new Error("O certificado precisa conter CNPJ para cadastrar empresa automaticamente.");
+    error.statusCode = 422;
+    throw error;
+  }
+
+  // Se a empresa ja existir para o CNPJ do certificado, apenas vincula o A1.
+  // Se nao existir, cria a empresa com os dados extraidos do certificado.
+  const existingCompany = await getCompanyById(info.documento);
+  const company = existingCompany || await createCompany({
+    legalName: payload.legalName || info.titular,
+    cnpj: info.documento,
+    certificateLabel: "Certificado validado",
+    status: "Certificado pendente"
+  });
+
+  const saved = await saveCertificate(company.id, file, password);
+  return {
+    company,
+    certificate: saved.certificate
   };
 }

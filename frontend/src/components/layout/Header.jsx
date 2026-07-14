@@ -6,8 +6,8 @@ export function Header() {
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="flex min-h-20 items-center justify-between gap-4 px-4 lg:px-8">
         <div>
-          <p className="text-sm text-slate-500">Empresa ativa</p>
-          <h1 className="text-lg font-bold text-navy">Alfa Comercio de Equipamentos Ltda</h1>
+          <p className="text-sm text-slate-500">Ambiente</p>
+          <h1 className="text-lg font-bold text-navy">Safe NFe</h1>
         </div>
         <div className="hidden w-full max-w-md items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
           <Search size={18} className="text-slate-400" />

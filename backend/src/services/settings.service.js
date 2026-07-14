@@ -1,13 +1,13 @@
 export function getSettings() {
   return {
     account: {
-      owner: "Paulo Fiscal",
-      email: "paulo@fiscalvault.local",
-      plan: "Profissional"
+      owner: "Administrador",
+      email: "admin@safe-nfe.local",
+      plan: "Local"
     },
     company: {
-      name: "Alfa Comercio de Equipamentos Ltda",
-      cnpj: "12.345.678/0001-90"
+      name: null,
+      cnpj: null
     },
     storage: {
       xmlRetentionYears: 5,

@@ -1,12 +1,17 @@
-import { companies } from "../mocks/companies.mock.js";
+import { readStore } from "../services/store.service.js";
 
-export function companiesIndex(_req, res) {
-  res.json(
-    companies.map((company, index) => ({
-      ...company,
-      monthlyFolder: `2026/${String(index + 4).padStart(2, "0")}`,
-      closingStatus: index === 1 ? "Pendente" : "Fechado",
-      xmlBatchAvailable: index !== 1
-    }))
-  );
+export async function companiesIndex(_req, res, next) {
+  try {
+    const data = await readStore();
+    res.json(
+      data.companies.map((company) => ({
+        ...company,
+        monthlyFolder: null,
+        closingStatus: "Sem fechamento",
+        xmlBatchAvailable: false
+      }))
+    );
+  } catch (error) {
+    next(error);
+  }
 }

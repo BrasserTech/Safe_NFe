@@ -1,27 +1,19 @@
-import { ctes, invoices } from "../mocks/documents.mock.js";
+import { getDocumentById, listDocuments, manifestDocument } from "./document.service.js";
 
-export function listInvoices() {
-  return invoices;
+export async function listInvoices() {
+  const documents = await listDocuments();
+  return documents.filter((document) => document.type !== "CT-e");
 }
 
 export function getInvoiceById(id) {
-  return invoices.find((invoice) => invoice.id === id);
+  return getDocumentById(id);
 }
 
 export function manifestInvoice(id, manifestStatus) {
-  const invoice = getInvoiceById(id);
-
-  if (!invoice) {
-    return null;
-  }
-
-  return {
-    ...invoice,
-    manifestStatus,
-    manifestedAt: new Date().toISOString()
-  };
+  return manifestDocument(id, manifestStatus);
 }
 
-export function listCtes() {
-  return ctes;
+export async function listCtes() {
+  const documents = await listDocuments();
+  return documents.filter((document) => document.type === "CT-e");
 }
