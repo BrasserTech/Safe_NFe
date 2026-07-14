@@ -145,6 +145,25 @@ function encryptPassword(password) {
   return [iv.toString("hex"), tag.toString("hex"), encrypted.toString("hex")].join(":");
 }
 
+function decryptPassword(encryptedPassword) {
+  const secret = process.env.CERTIFICATE_SECRET || process.env.JWT_SECRET || "fiscalvault-development-secret";
+  const key = crypto.createHash("sha256").update(secret).digest();
+  const [ivHex, tagHex, encryptedHex] = String(encryptedPassword || "").split(":");
+
+  if (!ivHex || !tagHex || !encryptedHex) {
+    const error = new Error("Senha do certificado nao esta disponivel para integracao fiscal.");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(encryptedHex, "hex")),
+    decipher.final()
+  ]).toString("utf8");
+}
+
 // Teste vinculado a uma empresa: valida o certificado e confirma que a empresa
 // existe antes de liberar a resposta.
 export function testCertificate(companyId, file, password) {
@@ -269,6 +288,26 @@ export async function getCurrentCertificate(companyId) {
   }
 
   return publicCertificate(record);
+}
+
+// Retorna o certificado com dados suficientes para um adaptador fiscal real.
+// A senha descriptografada so deve ser usada dentro do backend e nunca enviada
+// para telas ou logs. O envio do arquivo ao provedor ainda depende de flag
+// explicita no service de integracao.
+export async function getCertificateForFiscalProvider(companyId) {
+  const company = await findCompany(companyId);
+  const data = await readStore();
+  const record = data.certificates.find((item) => item.companyId === company.id);
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    ...publicCertificate(record),
+    filePath: record.filePath,
+    password: decryptPassword(record.encryptedPassword)
+  };
 }
 
 // Lista certificados para o painel operacional.

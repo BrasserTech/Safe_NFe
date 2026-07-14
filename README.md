@@ -87,17 +87,87 @@ npm run prisma:migrate
 
 ## Status das integracoes fiscais
 
-O projeto agora possui fluxo completo de cofre fiscal local: empresas, certificados A1, documentos, captura parametrizada, DANFE simples, ZIP em lote e auditoria.
+O projeto agora possui fluxo completo de cofre fiscal local: empresas, certificados A1, documentos, captura parametrizada, DANFE detalhada a partir do XML, ZIP em lote e auditoria.
 
-A consulta SEFAZ/NFS-e real ainda depende de um adaptador fiscal contratado/configurado. Para evitar falso positivo em producao, se `SEFAZ_INTEGRATION_ENABLED=true` ou `NFSE_INTEGRATION_ENABLED=true` forem usados sem endpoint/adaptador, a API retorna erro explicito.
+A consulta SEFAZ/NFS-e real usa um adaptador HTTP configuravel. Com `SEFAZ_INTEGRATION_ENABLED=true` ou `NFSE_INTEGRATION_ENABLED=true`, a captura chama o endpoint contratado, envia empresa, certificado e parametros de consulta, normaliza os documentos retornados e salva XML/PDF no cofre.
 
 Variaveis relevantes em `backend/.env`:
 
 ```env
 SEFAZ_INTEGRATION_ENABLED=false
 SEFAZ_DISTRIBUTION_URL=
+SEFAZ_PROVIDER_TOKEN=
+SEFAZ_PROVIDER_AUTH_HEADER=Authorization
+SEFAZ_PROVIDER_TIMEOUT_MS=60000
+SEFAZ_PROVIDER_SEND_CERTIFICATE=false
+
 NFSE_INTEGRATION_ENABLED=false
 NFSE_PROVIDER_URL=
+NFSE_PROVIDER_TOKEN=
+NFSE_PROVIDER_AUTH_HEADER=Authorization
+NFSE_PROVIDER_TIMEOUT_MS=60000
+NFSE_PROVIDER_SEND_CERTIFICATE=false
 ```
 
 Com as flags desligadas, a captura roda em modo local de teste e grava documentos no cofre para validar o fluxo operacional.
+
+### Contrato do provedor fiscal
+
+O backend faz `POST` para `SEFAZ_DISTRIBUTION_URL` ou `NFSE_PROVIDER_URL` com JSON:
+
+```json
+{
+  "company": {
+    "id": "id-interno",
+    "legalName": "Razao social",
+    "cnpj": "00000000000000"
+  },
+  "certificate": {
+    "id": "id-certificado",
+    "type": "A1",
+    "holder": "Titular",
+    "document": "00000000000000",
+    "expiresAt": "2026-12-31T00:00:00.000Z"
+  },
+  "query": {
+    "documentType": "NF-e",
+    "environment": "Producao",
+    "direction": "Entrada",
+    "role": "Destinatario",
+    "ufCode": "42",
+    "queryMode": "distNSU",
+    "dateFrom": "2026-07-01",
+    "dateTo": "2026-07-31",
+    "nsu": "",
+    "accessKey": ""
+  }
+}
+```
+
+Se `SEFAZ_PROVIDER_SEND_CERTIFICATE=true` ou `NFSE_PROVIDER_SEND_CERTIFICATE=true`, o objeto `certificate` tambem recebe `fileBase64` e `password`. Use essa opcao somente quando o provedor exigir o certificado a cada consulta.
+
+Resposta aceita:
+
+```json
+{
+  "provider": "nome-do-provedor",
+  "status": "ok",
+  "message": "Consulta concluida",
+  "documents": [
+    {
+      "type": "NF-e",
+      "direction": "Entrada",
+      "issuer": "Fornecedor",
+      "cnpj": "00000000000000",
+      "number": "123",
+      "accessKey": "chave-de-acesso",
+      "nsu": "000000000000001",
+      "date": "2026-07-14",
+      "amount": 100.5,
+      "status": "Autorizada",
+      "manifestStatus": "Pendente",
+      "xml": "<xml autorizado>"
+    }
+  ]
+}
+```

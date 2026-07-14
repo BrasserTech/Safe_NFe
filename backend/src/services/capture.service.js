@@ -1,34 +1,18 @@
 import { randomUUID } from "crypto";
 import { addAuditLog } from "./audit.service.js";
+import { getCertificateForFiscalProvider } from "./certificate.service.js";
 import { upsertDocuments } from "./document.service.js";
+import { requestFiscalDocuments } from "./fiscal-provider.service.js";
 import { readStore } from "./store.service.js";
 
 function onlyDigits(value = "") {
   return String(value).replace(/\D/g, "");
 }
 
-// Protecao contra falso positivo em producao:
-// quando a flag real estiver ligada, exigimos endpoint/adaptador fiscal.
-// Enquanto nao houver adaptador contratado, a API falha explicitamente.
-function assertRealAdapterConfigured(source) {
-  const enabled = source === "nfse"
+function isRealIntegrationEnabled(source) {
+  return source === "nfse"
     ? process.env.NFSE_INTEGRATION_ENABLED === "true"
     : process.env.SEFAZ_INTEGRATION_ENABLED === "true";
-
-  if (!enabled) {
-    return false;
-  }
-
-  const url = source === "nfse" ? process.env.NFSE_PROVIDER_URL : process.env.SEFAZ_DISTRIBUTION_URL;
-  if (!url) {
-    const error = new Error("Integracao real habilitada, mas endpoint fiscal nao configurado no .env.");
-    error.statusCode = 501;
-    throw error;
-  }
-
-  const error = new Error("Adaptador fiscal real ainda nao implementado. Configure o provedor SEFAZ/NFS-e antes de usar em producao.");
-  error.statusCode = 501;
-  throw error;
 }
 
 // Aceita tanto id interno quanto CNPJ para facilitar chamadas vindas da UI.
@@ -41,14 +25,43 @@ async function findCompany(companyIdOrCnpj) {
 // Captura fiscal depende de certificado A1 vinculado a empresa.
 // Sem isso a busca real na SEFAZ/Portal Nacional nao tem credencial.
 async function assertCertificate(companyId) {
-  const data = await readStore();
-  const certificate = data.certificates.find((item) => item.companyId === companyId);
+  const certificate = await getCertificateForFiscalProvider(companyId);
   if (!certificate) {
     const error = new Error("Vincule um certificado A1 valido antes de capturar documentos.");
     error.statusCode = 422;
     throw error;
   }
   return certificate;
+}
+
+async function captureWithProvider(kind, { company, certificate, payload, sourceLabel }) {
+  const result = await requestFiscalDocuments(kind, {
+    company,
+    certificate,
+    payload,
+    sourceLabel
+  });
+  const saved = result.documents.length ? await upsertDocuments(result.documents) : [];
+
+  await addAuditLog({
+    title: kind === "nfse" ? "Captura NFS-e real executada" : "Captura SEFAZ real executada",
+    detail: `${saved.length} documento(s) para ${company.legalName}`,
+    type: "capture",
+    metadata: {
+      companyId: company.id,
+      provider: result.provider,
+      status: result.status,
+      payload
+    }
+  });
+
+  return {
+    mode: "real-provider",
+    provider: result.provider,
+    status: result.status,
+    reason: result.message,
+    saved_documents: saved
+  };
 }
 
 // Gera um XML minimo para testar o fluxo local completo.
@@ -64,7 +77,6 @@ function sampleXml(payload, company, type) {
 // Contrato da captura SEFAZ. Hoje persiste um documento local para validar
 // fluxo de cofre; a troca por consulta real deve acontecer antes do upsert.
 export async function captureSefazDistribution(payload) {
-  assertRealAdapterConfigured("sefaz");
   const company = await findCompany(payload.companyId || payload.company);
 
   if (!company) {
@@ -73,7 +85,16 @@ export async function captureSefazDistribution(payload) {
     throw error;
   }
 
-  await assertCertificate(company.id);
+  const certificate = await assertCertificate(company.id);
+
+  if (isRealIntegrationEnabled("sefaz")) {
+    return captureWithProvider("sefaz", {
+      company,
+      certificate,
+      payload,
+      sourceLabel: "SEFAZ Distribuicao DFe"
+    });
+  }
 
   const type = payload.documentType === "Todos" ? "NF-e" : payload.documentType;
   const generated = sampleXml(payload, company, type);
@@ -116,7 +137,6 @@ export async function captureSefazDistribution(payload) {
 // Contrato da captura NFS-e. Mantem o mesmo comportamento da SEFAZ para a UI,
 // permitindo evoluir provedores municipais sem alterar as telas.
 export async function captureNfseNational(payload) {
-  assertRealAdapterConfigured("nfse");
   const company = await findCompany(payload.companyId || payload.company);
 
   if (!company) {
@@ -125,7 +145,17 @@ export async function captureNfseNational(payload) {
     throw error;
   }
 
-  await assertCertificate(company.id);
+  const certificate = await assertCertificate(company.id);
+
+  if (isRealIntegrationEnabled("nfse")) {
+    return captureWithProvider("nfse", {
+      company,
+      certificate,
+      payload,
+      sourceLabel: payload.source || "Portal Nacional NFS-e"
+    });
+  }
+
   const generated = sampleXml(payload, company, "NFS-e");
   const saved = await upsertDocuments([
     {
