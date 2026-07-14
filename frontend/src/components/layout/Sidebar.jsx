@@ -6,6 +6,8 @@ import { NavLink } from "react-router-dom";
 // Dashboard, Empresas, Documentos, Captura, Integracoes e Auditoria.
 // Certificados, CT-e, manifestacao e contador ficam dentro desses modulos.
 const links = [
+  // Cada item vira um botao do menu lateral. "to" e a rota aberta quando clica,
+  // "label" e o texto mostrado no hover, e "icon" e o icone exibido recolhido.
   { to: "/app", label: "Dashboard", icon: Home },
   { to: "/app/empresas", label: "Empresas", icon: Building2 },
   { to: "/app/documentos", label: "Documentos", icon: FileText },
@@ -28,6 +30,8 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {links.map(({ to, label, icon: Icon }) => (
+          // NavLink sabe sozinho se a rota atual esta ativa. Usamos isso para
+          // pintar o botao selecionado sem controlar estado manualmente.
           <NavLink
             key={to}
             to={to}

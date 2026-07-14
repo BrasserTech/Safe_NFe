@@ -10,6 +10,9 @@ import { currency, date } from "../utils/formatters.js";
 // Converte resposta binaria da API em download no navegador.
 // Usado para XML, PDF e ZIP sem precisar criar arquivos temporarios no frontend.
 function downloadBlob(blob, filename) {
+  // O backend devolve arquivo binario. O navegador so consegue baixar isso se
+  // criarmos uma URL temporaria, clicarmos em um link invisivel e depois
+  // liberarmos a memoria com revokeObjectURL.
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -20,7 +23,10 @@ function downloadBlob(blob, filename) {
 
 export function Documents() {
   const [searchParams] = useSearchParams();
+  // documents vem de GET /documents. Cada item ja foi salvo no cofre pela
+  // captura fiscal ou por outro fluxo futuro de importacao.
   const [documents, setDocuments] = useState([]);
+  // query/type/direction/manifestFilter controlam os filtros visiveis no topo.
   const [query, setQuery] = useState(searchParams.get("busca") || "");
   const [type, setType] = useState(searchParams.get("tipo") || "Todos");
   const [direction, setDirection] = useState("Todos");
@@ -48,6 +54,8 @@ export function Documents() {
   }, [searchParams]);
 
   const filtered = useMemo(() => documents.filter((document) => {
+    // Estes filtros nao alteram os dados salvos; eles apenas escondem/mostram
+    // linhas da tabela para facilitar conferencia.
     const matchesType = type === "Todos" || document.type === type;
     const matchesDirection = direction === "Todos" || document.direction === direction;
     const matchesManifest = manifestFilter === "Todos" || document.manifestStatus === manifestFilter;
@@ -108,17 +116,24 @@ export function Documents() {
       </div>
 
       <div className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-soft xl:grid-cols-[1fr_10rem_10rem_12rem_auto_auto]">
+        {/* Busca livre: procura nos textos ja carregados da tabela, como tipo,
+            empresa, numero, emitente, status, manifestacao e fonte. */}
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por tipo, empresa, numero, emitente ou status" className="rounded-md border border-slate-200 px-3 py-2" />
+        {/* Tipo de documento: filtra NF-e, CT-e, NFC-e, MDF-e ou NFS-e. */}
         <select value={type} onChange={(event) => setType(event.target.value)} className="rounded-md border border-slate-200 px-3 py-2">
           {["Todos", "NF-e", "CT-e", "NFC-e", "MDF-e", "NFS-e"].map((item) => <option key={item}>{item}</option>)}
         </select>
+        {/* Entrada/Saida: mostra documentos recebidos ou emitidos pela empresa. */}
         <select value={direction} onChange={(event) => setDirection(event.target.value)} className="rounded-md border border-slate-200 px-3 py-2">
           {["Todos", "Entrada", "Saida"].map((item) => <option key={item}>{item}</option>)}
         </select>
+        {/* Manifestacao: ajuda a encontrar notas pendentes de ciencia/confirmacao. */}
         <select value={manifestFilter} onChange={(event) => setManifestFilter(event.target.value)} className="rounded-md border border-slate-200 px-3 py-2">
           {["Todos", "Pendente", "Ciencia da operacao", "Confirmada", "Desconhecida"].map((item) => <option key={item}>{item}</option>)}
         </select>
+        {/* XML lote: baixa um ZIP com os XMLs das linhas marcadas no checkbox. */}
         <Button type="button" variant="secondary" disabled={selected.length === 0} onClick={() => downloadZip("xml")}><FileArchive size={16} />XML lote</Button>
+        {/* PDF lote: baixa um ZIP com DANFEs/PDFs gerados das linhas marcadas. */}
         <Button type="button" variant="secondary" disabled={selected.length === 0} onClick={() => downloadZip("pdf")}><FileArchive size={16} />PDF lote</Button>
       </div>
 
@@ -126,7 +141,9 @@ export function Documents() {
 
       <Table
         columns={[
+          // Checkbox: marca a linha para entrar nos downloads em lote.
           { key: "select", label: "", render: (row) => <input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggle(row.id)} /> },
+          // Colunas abaixo mostram dados vindos do XML/provedor e salvos no cofre.
           { key: "type", label: "Tipo" },
           { key: "direction", label: "Direcao" },
           { key: "number", label: "Numero" },
@@ -138,9 +155,15 @@ export function Documents() {
           { key: "source", label: "Fonte" },
           { key: "actions", label: "Acoes", render: (row) => (
             <div className="flex gap-2">
+              {/* Baixar XML: entrega o arquivo fiscal autorizado salvo no cofre. */}
               <Button variant="ghost" title="Baixar XML" disabled={!row.hasXml} onClick={() => download(row.id, "xml")}><FileCode2 size={16} /></Button>
+              {/* Visualizar DANFE: abre em nova aba o PDF detalhado gerado do XML. */}
               <Button variant="ghost" title="Visualizar DANFE" onClick={() => preview(row.id)}><Eye size={16} /></Button>
+              {/* Baixar PDF: gera/baixa a DANFE em arquivo PDF. */}
               <Button variant="ghost" title="Baixar PDF" onClick={() => download(row.id, "pdf")}><Download size={16} /></Button>
+              {/* Manifestar ciencia: muda o status da NF-e para indicar que a
+                  empresa tomou ciencia da operacao. Fica desativado quando nao
+                  e NF-e ou quando ja nao esta pendente. */}
               <Button
                 variant="ghost"
                 title="Manifestar ciencia da operacao"

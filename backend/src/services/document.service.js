@@ -14,33 +14,44 @@ function onlyDigits(value = "") {
 }
 
 function firstTag(xml = "", tag) {
+  // Busca o primeiro valor de uma tag do XML. Exemplo: firstTag(xml, "nNF")
+  // encontra o numero da nota dentro de <nNF>123</nNF>.
   const match = String(xml).match(new RegExp(`<(?:\\w+:)?${tag}\\b[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${tag}>`, "i"));
   return match?.[1]?.trim() || "";
 }
 
 function firstBlock(xml = "", tag) {
+  // Retorna um bloco inteiro do XML, como <emit>...</emit>. Depois usamos
+  // firstTag dentro desse bloco para pegar campos como CNPJ e xNome.
   return firstTag(xml, tag);
 }
 
 function firstAttribute(xml = "", tag, attribute) {
+  // Lê atributos de tags. Na NF-e, a chave costuma vir em:
+  // <infNFe Id="NFe3526...">. Aqui buscamos o valor de Id.
   const match = String(xml).match(new RegExp(`<(?:\\w+:)?${tag}\\b[^>]*\\s${attribute}=["']([^"']+)["']`, "i"));
   return match?.[1]?.trim() || "";
 }
 
 function formatAccessKey(value = "") {
+  // Agrupa a chave em blocos de 4 digitos para facilitar leitura humana no PDF.
   const digits = onlyDigits(value);
   return digits ? digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim() : "";
 }
 
 function formatMoney(value = 0) {
+  // Converte numero comum para moeda brasileira, usado no resumo do PDF.
   return Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function cleanXmlName(name = "") {
+  // Remove prefixos tecnicos do XML, como "nfe:xNome", para exibir caminhos
+  // mais simples na pagina "Campos detalhados do XML".
   return name.replace(/^\/+/, "").replace(/\/$/, "").split(/\s+/)[0].replace(/^\w+:/, "");
 }
 
 function xmlAttributes(tag = "") {
+  // Extrai atributos de uma tag. Exemplo: em <det nItem="1">, salva nItem=1.
   const attributes = [];
   const attrPattern = /([\w:-]+)=["']([^"']*)["']/g;
   let match;
@@ -97,6 +108,8 @@ function flattenXmlFields(xml = "") {
 }
 
 function prettyXml(xml = "") {
+  // Quebra e identa o XML bruto para que a ultima pagina do PDF seja legivel.
+  // O XML original continua inteiro; esta funcao muda apenas a apresentacao.
   const tokens = String(xml).replace(/>\s+</g, "><").replace(/</g, "\n<").split("\n").filter(Boolean);
   let level = 0;
 
@@ -116,6 +129,8 @@ function prettyXml(xml = "") {
 }
 
 function ensurePageSpace(pdf, y, needed = 18) {
+  // Antes de escrever uma linha no PDF, confere se ainda cabe na pagina.
+  // Se nao couber, cria uma nova pagina e volta para o topo util.
   if (y + needed <= pdf.page.height - 42) {
     return y;
   }
@@ -125,6 +140,8 @@ function ensurePageSpace(pdf, y, needed = 18) {
 }
 
 function writeKeyValuePages(pdf, fields) {
+  // Cria paginas com todos os campos textuais extraidos do XML. A coluna da
+  // esquerda mostra o caminho do dado; a direita mostra o valor encontrado.
   let y = 72;
   pdf.addPage();
   pdf.fontSize(13).fillColor("#0F172A").text("Campos detalhados do XML", 36, 36);
@@ -140,6 +157,8 @@ function writeKeyValuePages(pdf, fields) {
 }
 
 function writeFullXmlPages(pdf, xml = "") {
+  // Cria paginas finais com o XML completo. Isso ajuda conferencia manual:
+  // qualquer informacao que nao entrou no resumo ainda fica visivel no PDF.
   const xmlText = prettyXml(xml || "XML nao armazenado.");
   const lines = xmlText.split("\n");
   let y = 72;
@@ -162,6 +181,10 @@ function writeFullXmlPages(pdf, xml = "") {
 // layout fixo da tela. Quando o XML real existir, o PDF usa essas informacoes
 // em vez de apenas despejar texto bruto.
 function extractFiscalData(document, xml = "") {
+  // Os blocos abaixo sao partes conhecidas da NF-e:
+  // ide = identificacao da nota, emit = emitente, dest = destinatario,
+  // ICMSTot = totais. Quando algum campo nao existe, usamos dados salvos
+  // no cofre para evitar PDF vazio.
   const ide = firstBlock(xml, "ide");
   const emit = firstBlock(xml, "emit");
   const dest = firstBlock(xml, "dest");
@@ -171,12 +194,15 @@ function extractFiscalData(document, xml = "") {
   const issueDate = firstTag(ide, "dhEmi") || firstTag(ide, "dEmi") || document.date;
 
   return {
+    // type/number/serie aparecem no topo da DANFE para identificar a nota.
     type: document.type || (xml.includes("<NFe") ? "NF-e" : "Documento fiscal"),
     number: document.number || firstTag(ide, "nNF") || "-",
     serie: firstTag(ide, "serie") || "-",
+    // operation vem de natOp, a natureza da operacao declarada no XML.
     operation: firstTag(ide, "natOp") || "-",
     accessKey,
     formattedAccessKey: formatAccessKey(accessKey),
+    // issuer vem do emitente da nota; recipient vem do destinatario.
     issuer: document.issuer || firstTag(emit, "xNome") || "-",
     issuerCnpj: onlyDigits(document.cnpj || firstTag(emit, "CNPJ") || firstTag(emit, "CPF")),
     recipient: firstTag(dest, "xNome") || document.company || "-",
@@ -192,7 +218,9 @@ function extractFiscalData(document, xml = "") {
 function asPublicDocument(document) {
   return {
     ...document,
+    // hasXml habilita/desabilita o botao "Baixar XML" na tela Documentos.
     hasXml: Boolean(document.xml),
+    // pdfAvailable informa que o backend consegue gerar/baixar DANFE/PDF.
     pdfAvailable: Boolean(document.pdfAvailable || document.pdfPath || document.xml)
   };
 }
@@ -236,6 +264,8 @@ export async function upsertDocuments(documents) {
         (document.nsu && item.nsu === document.nsu && item.companyId === document.companyId)
       ));
       const record = {
+        // Estes dados podem vir do provedor fiscal real ou do modo local.
+        // O upsert padroniza tudo antes de gravar no cofre.
         id: document.id || randomUUID(),
         companyId: document.companyId,
         number: document.number || document.accessKey?.slice(-9) || String(Date.now()),
@@ -305,8 +335,13 @@ export async function manifestDocument(id, manifestStatus) {
 // quando houver XML real completo, pode ser trocado por gerador fiscal dedicado.
 export function generateDanfePdfBuffer(document, xml = "") {
   return new Promise((resolve, reject) => {
+    // fullXml e a fonte mais importante do PDF. Primeiro usa o XML recebido
+    // diretamente; se nao vier, usa o XML ja salvo no documento do cofre.
     const fullXml = xml || document.xml || "";
+    // fiscal e o resumo legivel da nota para a primeira pagina.
     const fiscal = extractFiscalData(document, fullXml);
+    // fields sao todos os dados textuais encontrados no XML para paginas
+    // detalhadas, pedido para facilitar conferencia por usuario leigo.
     const fields = flattenXmlFields(fullXml);
     const pdf = new PDFDocument({ size: "A4", margin: 36 });
     const stream = new PassThrough();
@@ -318,11 +353,14 @@ export function generateDanfePdfBuffer(document, xml = "") {
     pdf.pipe(stream);
 
     const box = (x, y, width, height, title, value, options = {}) => {
+      // Desenha uma caixa de informacao no PDF: titulo pequeno em cinza e
+      // valor principal em destaque. Usada para Tipo, Numero, Emitente etc.
       pdf.rect(x, y, width, height).stroke("#CBD5E1");
       pdf.fontSize(7).fillColor("#64748B").text(title, x + 6, y + 5, { width: width - 12 });
       pdf.fontSize(options.size || 9).fillColor("#0F172A").text(value || "-", x + 6, y + 18, { width: width - 12 });
     };
 
+    // Primeira pagina: resumo operacional para leitura rapida.
     pdf.fontSize(17).fillColor("#0F172A").text("DANFE / Documento Fiscal", 36, 34, { align: "center" });
     pdf.fontSize(8).fillColor("#475569").text("Representacao operacional gerada pelo Safe NFe a partir do XML armazenado.", 36, 58, { align: "center" });
 
@@ -346,8 +384,10 @@ export function generateDanfePdfBuffer(document, xml = "") {
     pdf.text("Observacao: use o XML autorizado como documento fiscal principal. Este PDF serve para consulta, conferencia e compartilhamento operacional.", 36, 424, { width: 523 });
 
     if (fields.length) {
+      // Paginas intermediarias: todos os campos do XML em formato caminho/valor.
       writeKeyValuePages(pdf, fields);
     }
+    // Ultimas paginas: XML completo, para nao perder nenhum detalhe fiscal.
     writeFullXmlPages(pdf, fullXml);
     pdf.end();
   });

@@ -9,13 +9,18 @@ function onlyDigits(value = "") {
   return String(value).replace(/\D/g, "");
 }
 
+// Decide se a captura vai usar provedor real ou modo local.
+// O valor vem do backend/.env:
+// - SEFAZ_INTEGRATION_ENABLED=true para NF-e/CT-e/NFC-e/MDF-e.
+// - NFSE_INTEGRATION_ENABLED=true para NFS-e.
 function isRealIntegrationEnabled(source) {
   return source === "nfse"
     ? process.env.NFSE_INTEGRATION_ENABLED === "true"
     : process.env.SEFAZ_INTEGRATION_ENABLED === "true";
 }
 
-// Aceita tanto id interno quanto CNPJ para facilitar chamadas vindas da UI.
+// Procura a empresa que o usuario escolheu na tela Captura.
+// A UI envia normalmente o id interno, mas aceitar CNPJ facilita automacoes.
 async function findCompany(companyIdOrCnpj) {
   const data = await readStore();
   const digits = onlyDigits(companyIdOrCnpj);
@@ -34,6 +39,9 @@ async function assertCertificate(companyId) {
   return certificate;
 }
 
+// Executa a captura real por provedor contratado.
+// A funcao chama o adaptador HTTP, recebe documentos normalizados, salva no
+// cofre local e registra auditoria para mostrar que a operacao aconteceu.
 async function captureWithProvider(kind, { company, certificate, payload, sourceLabel }) {
   const result = await requestFiscalDocuments(kind, {
     company,
@@ -43,6 +51,8 @@ async function captureWithProvider(kind, { company, certificate, payload, source
   });
   const saved = result.documents.length ? await upsertDocuments(result.documents) : [];
 
+  // Auditoria e o historico operacional. Ela responde perguntas como:
+  // "quem capturou?", "para qual empresa?", "qual provedor respondeu?".
   await addAuditLog({
     title: kind === "nfse" ? "Captura NFS-e real executada" : "Captura SEFAZ real executada",
     detail: `${saved.length} documento(s) para ${company.legalName}`,
@@ -74,8 +84,10 @@ function sampleXml(payload, company, type) {
   };
 }
 
-// Contrato da captura SEFAZ. Hoje persiste um documento local para validar
-// fluxo de cofre; a troca por consulta real deve acontecer antes do upsert.
+// Entrada principal da captura SEFAZ.
+// O payload vem da tela Captura: empresa, tipo de documento, UF, periodo,
+// NSU/chave e opcoes de XML/PDF/manifestacao. Se a flag real estiver ligada,
+// usa o provedor configurado; caso contrario, usa modo local de teste.
 export async function captureSefazDistribution(payload) {
   const company = await findCompany(payload.companyId || payload.company);
 
@@ -87,6 +99,7 @@ export async function captureSefazDistribution(payload) {
 
   const certificate = await assertCertificate(company.id);
 
+  // Caminho de producao: consulta o endpoint do provedor fiscal contratado.
   if (isRealIntegrationEnabled("sefaz")) {
     return captureWithProvider("sefaz", {
       company,
@@ -96,6 +109,8 @@ export async function captureSefazDistribution(payload) {
     });
   }
 
+  // Caminho local: cria um documento minimo apenas para testar telas, filtros,
+  // downloads, PDF e auditoria sem depender de SEFAZ real.
   const type = payload.documentType === "Todos" ? "NF-e" : payload.documentType;
   const generated = sampleXml(payload, company, type);
   const saved = await upsertDocuments([
@@ -134,8 +149,9 @@ export async function captureSefazDistribution(payload) {
   };
 }
 
-// Contrato da captura NFS-e. Mantem o mesmo comportamento da SEFAZ para a UI,
-// permitindo evoluir provedores municipais sem alterar as telas.
+// Entrada principal da captura NFS-e. Mantem o mesmo desenho da SEFAZ para que
+// a tela Captura nao precise saber se a nota veio de prefeitura, gateway ou
+// Portal Nacional. A escolha do endpoint fica no backend/.env.
 export async function captureNfseNational(payload) {
   const company = await findCompany(payload.companyId || payload.company);
 
@@ -147,6 +163,7 @@ export async function captureNfseNational(payload) {
 
   const certificate = await assertCertificate(company.id);
 
+  // Caminho de producao para NFS-e.
   if (isRealIntegrationEnabled("nfse")) {
     return captureWithProvider("nfse", {
       company,
@@ -156,6 +173,7 @@ export async function captureNfseNational(payload) {
     });
   }
 
+  // Caminho local para testar o fluxo de NFS-e sem provedor configurado.
   const generated = sampleXml(payload, company, "NFS-e");
   const saved = await upsertDocuments([
     {

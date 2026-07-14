@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 export function Header() {
+  // query guarda o texto digitado na busca superior. Ele nao consulta o backend
+  // a cada tecla; so e usado quando o usuario pressiona Enter.
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
 
@@ -21,6 +23,8 @@ export function Header() {
           <p className="text-sm text-slate-500">Ambiente</p>
           <h1 className="text-lg font-bold text-navy">Safe NFe</h1>
         </div>
+        {/* Busca superior: ao enviar, abre Documentos com ?busca=texto. A tela
+            Documentos le esse parametro e filtra os registros carregados. */}
         <form onSubmit={submitSearch} className="hidden w-full max-w-md items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
           <Search size={18} className="text-slate-400" />
           <input
@@ -30,6 +34,8 @@ export function Header() {
             placeholder="Buscar documentos, empresas ou CNPJ"
           />
         </form>
+        {/* Sino: funciona como atalho para Auditoria, onde ficam eventos de
+            captura, certificados, manifestacoes e downloads. */}
         <Link to="/app/auditoria" title="Abrir auditoria" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600">
           <Bell size={18} />
         </Link>

@@ -7,6 +7,8 @@ import { Table } from "../components/ui/Table.jsx";
 import { api } from "../services/api.js";
 
 function onlyDigits(value = "") {
+  // Remove mascara do CNPJ antes de enviar ao backend. Assim o cadastro aceita
+  // "12.345.678/0001-99" e salva como "12345678000199".
   return String(value).replace(/\D/g, "");
 }
 
@@ -20,8 +22,10 @@ export function Companies() {
   const [certificateCompanyName, setCertificateCompanyName] = useState("");
   const [loadingCertificate, setLoadingCertificate] = useState(false);
 
-  // Empresas sao persistidas no backend e compartilhadas com Captura,
-  // Documentos, Manifestacao e Relatorios.
+  // Empresas sao persistidas no backend e compartilhadas com:
+  // - Captura: para escolher qual CNPJ sera consultado.
+  // - Certificado A1: para vincular a credencial fiscal correta.
+  // - Documentos: para mostrar de qual empresa e cada XML/PDF.
   async function load() {
     const response = await api.get("/companies");
     setCompanies(response.data);
@@ -31,7 +35,8 @@ export function Companies() {
     load().catch(() => setMessage("Nao foi possivel carregar empresas."));
   }, []);
 
-  // Cria empresa usando cadastro manual. O backend valida CNPJ e duplicidade.
+  // Cria empresa usando cadastro manual. Os dados vêm dos inputs da aba
+  // "Cadastro manual". O backend valida se o CNPJ tem 14 digitos e se ja existe.
   async function submitManual(event) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -60,9 +65,10 @@ export function Companies() {
     return formData;
   }
 
-  // Valida o A1 e preenche automaticamente os dados conhecidos do cadastro.
-  // O certificado normalmente traz CNPJ/CPF e titular; a razao social fica
-  // editavel porque alguns certificados trazem o nome em formato tecnico.
+  // Botao "Validar e puxar dados":
+  // envia o arquivo .pfx/.p12 e a senha para o backend abrir o certificado.
+  // O backend devolve titular, CNPJ/CPF, validade e status. Esses dados vêm
+  // de dentro do certificado, nao sao digitados manualmente.
   async function validateCertificate() {
     if (!certificateFile || !certificatePassword) {
       setMessage("Selecione o certificado e informe a senha.");
@@ -84,8 +90,9 @@ export function Companies() {
     }
   }
 
-  // Cadastra empresa pelo CNPJ extraido do certificado e ja vincula o A1.
-  // Se a empresa ja existir, o backend apenas atualiza o certificado dela.
+  // Botao "Cadastrar/vincular":
+  // usa o CNPJ extraido do certificado para criar a empresa, ou atualiza a
+  // empresa existente. Em seguida salva o A1 para futuras consultas fiscais.
   async function createFromCertificate() {
     if (!certificateInfo) {
       setMessage("Valide o certificado antes de cadastrar.");
@@ -111,7 +118,8 @@ export function Companies() {
     }
   }
 
-  // Remove empresa e seus dados vinculados no armazenamento local.
+  // Botao de lixeira na tabela:
+  // remove a empresa e os dados vinculados no armazenamento local.
   async function remove(id) {
     await api.delete(`/companies/${id}`);
     await load();
@@ -125,6 +133,8 @@ export function Companies() {
       </div>
 
       <div className="flex flex-wrap gap-2 border-b border-slate-200">
+        {/* Aba Cadastro manual: usada quando o usuario quer informar CNPJ e
+            razao social sem depender primeiro do certificado. */}
         <button
           type="button"
           onClick={() => setActiveTab("manual")}
@@ -135,6 +145,8 @@ export function Companies() {
           <Building2 size={17} />
           Cadastro manual
         </button>
+        {/* Aba Certificado A1: usada quando o usuario quer puxar CNPJ/titular
+            direto do arquivo do certificado e ja vincular a empresa. */}
         <button
           type="button"
           onClick={() => setActiveTab("certificate")}
@@ -149,13 +161,17 @@ export function Companies() {
 
       {activeTab === "manual" && (
         <form onSubmit={submitManual} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-soft md:grid-cols-4">
+          {/* Razao social e CNPJ sao enviados para POST /companies. */}
           <input name="legalName" required placeholder="Razao social" className="rounded-md border border-slate-200 px-3 py-2 md:col-span-2" />
           <input name="cnpj" required placeholder="CNPJ" className="rounded-md border border-slate-200 px-3 py-2" />
+          {/* Status inicial ajuda a diferenciar empresa pronta de empresa ainda
+              sem certificado valido. */}
           <select name="status" className="rounded-md border border-slate-200 px-3 py-2">
             <option>Certificado pendente</option>
             <option>Ativa</option>
             <option>Inativa</option>
           </select>
+          {/* Adicionar empresa: cria o cadastro manual no backend. */}
           <Button className="md:col-span-4"><Plus size={16} />Adicionar empresa</Button>
         </form>
       )}
@@ -164,6 +180,8 @@ export function Companies() {
         <Card title="Cadastrar e vincular por certificado A1" icon={FileKey2}>
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <div className="space-y-3">
+              {/* Arquivo do certificado A1. Aceita .pfx e .p12, que sao os
+                  formatos usados para consulta fiscal com certificado digital. */}
               <input
                 type="file"
                 accept=".pfx,.p12"
@@ -174,6 +192,8 @@ export function Companies() {
                 }}
                 className="w-full rounded-md border border-slate-200 px-3 py-2"
               />
+              {/* Senha do certificado. Ela e enviada ao backend para validar o
+                  A1 e salva criptografada quando o certificado e vinculado. */}
               <input
                 type="password"
                 value={certificatePassword}
@@ -182,10 +202,12 @@ export function Companies() {
                 className="w-full rounded-md border border-slate-200 px-3 py-2"
               />
               <div className="flex flex-wrap gap-2">
+                {/* Valida o arquivo e puxa dados de dentro do certificado. */}
                 <Button type="button" variant="secondary" onClick={validateCertificate} disabled={loadingCertificate}>
                   {loadingCertificate ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
                   Validar e puxar dados
                 </Button>
+                {/* Cadastra ou atualiza empresa e vincula o certificado A1. */}
                 <Button type="button" onClick={createFromCertificate} disabled={loadingCertificate || !certificateInfo}>
                   {loadingCertificate ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
                   Cadastrar/vincular
@@ -196,6 +218,8 @@ export function Companies() {
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
               <label className="block font-semibold text-slate-700">
                 Razao social extraida/editavel
+                {/* Esse campo começa com o titular do certificado, mas fica
+                    editavel porque alguns certificados trazem nome tecnico. */}
                 <input
                   value={certificateCompanyName}
                   onChange={(event) => setCertificateCompanyName(event.target.value)}
@@ -204,6 +228,7 @@ export function Companies() {
                 />
               </label>
               <div className="mt-4 grid gap-2 text-slate-600">
+                {/* Dados abaixo vieram do certificado validado no backend. */}
                 <p><strong>CNPJ/CPF:</strong> {certificateInfo?.documento || "-"}</p>
                 <p><strong>Titular:</strong> {certificateInfo?.titular || "-"}</p>
                 <p><strong>Validade:</strong> {certificateInfo?.validade ? new Intl.DateTimeFormat("pt-BR").format(new Date(certificateInfo.validade)) : "-"}</p>
