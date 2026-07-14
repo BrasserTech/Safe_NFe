@@ -1,19 +1,17 @@
-import { BarChart3, Building2, FileCheck2, FileSearch, FileText, History, Home, Landmark, Link2, Settings, Truck, Users } from "lucide-react";
+import { Building2, FileSearch, FileText, History, Home, Link2, Users } from "lucide-react";
 import React from "react";
 import { NavLink } from "react-router-dom";
 
+// Menu principal mantem a organizacao operacional do Safe NFe:
+// Dashboard, Empresas, Documentos, Captura, Integracoes e Auditoria.
+// Certificados, CT-e, manifestacao e contador ficam dentro desses modulos.
 const links = [
   { to: "/app", label: "Dashboard", icon: Home },
+  { to: "/app/empresas", label: "Empresas", icon: Building2 },
   { to: "/app/documentos", label: "Documentos", icon: FileText },
   { to: "/app/captura", label: "Captura", icon: FileSearch },
-  { to: "/app/ctes", label: "CT-e", icon: Truck },
-  { to: "/app/manifestacao", label: "Manifestacao", icon: FileCheck2 },
-  { to: "/app/empresas", label: "Empresas", icon: Building2 },
-  { to: "/app/relatorios", label: "Relatorios", icon: BarChart3 },
-  { to: "/app/contador", label: "Contador", icon: Landmark },
   { to: "/app/integracoes", label: "Integracoes", icon: Link2 },
-  { to: "/app/auditoria", label: "Auditoria", icon: History },
-  { to: "/app/configuracoes", label: "Configuracoes", icon: Settings }
+  { to: "/app/auditoria", label: "Auditoria", icon: History }
 ];
 
 export function Sidebar() {

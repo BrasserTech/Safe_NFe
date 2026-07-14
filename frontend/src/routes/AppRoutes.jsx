@@ -1,21 +1,15 @@
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../components/layout/AppLayout.jsx";
-import { Accountant } from "../pages/Accountant.jsx";
 import { Audit } from "../pages/Audit.jsx";
 import { Capture } from "../pages/Capture.jsx";
 import { Companies } from "../pages/Companies.jsx";
-import { Ctes } from "../pages/Ctes.jsx";
 import { Dashboard } from "../pages/Dashboard.jsx";
 import { Documents } from "../pages/Documents.jsx";
-import { Invoices } from "../pages/Invoices.jsx";
 import { Integrations } from "../pages/Integrations.jsx";
 import { LandingPage } from "../pages/LandingPage.jsx";
 import { Login } from "../pages/Login.jsx";
-import { Manifestation } from "../pages/Manifestation.jsx";
 import { Register } from "../pages/Register.jsx";
-import { Reports } from "../pages/Reports.jsx";
-import { Settings } from "../pages/Settings.jsx";
 
 export function AppRoutes() {
   return (
@@ -25,18 +19,22 @@ export function AppRoutes() {
       <Route path="/cadastro" element={<Register />} />
       <Route path="/app" element={<AppLayout />}>
         <Route index element={<Dashboard />} />
+        {/* Estrutura operacional do Safe NFe: os documentos fiscais ficam
+            centralizados em Documentos, e certificados ficam dentro de
+            Empresas. As rotas antigas permanecem como redirecionamento para
+            nao quebrar favoritos, atalhos ou links enviados aos usuarios. */}
         <Route path="notas" element={<Documents />} />
         <Route path="documentos" element={<Documents />} />
-        <Route path="ctes" element={<Ctes />} />
+        <Route path="ctes" element={<Navigate to="/app/documentos?tipo=CT-e" replace />} />
         <Route path="captura" element={<Capture />} />
-        <Route path="manifestacao" element={<Manifestation />} />
+        <Route path="manifestacao" element={<Navigate to="/app/documentos?manifestacao=pendente" replace />} />
         <Route path="empresas" element={<Companies />} />
         <Route path="certificados" element={<Navigate to="/app/empresas" replace />} />
-        <Route path="relatorios" element={<Reports />} />
-        <Route path="contador" element={<Accountant />} />
+        <Route path="relatorios" element={<Navigate to="/app" replace />} />
+        <Route path="contador" element={<Navigate to="/app/integracoes" replace />} />
         <Route path="integracoes" element={<Integrations />} />
         <Route path="auditoria" element={<Audit />} />
-        <Route path="configuracoes" element={<Settings />} />
+        <Route path="configuracoes" element={<Navigate to="/app/integracoes" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

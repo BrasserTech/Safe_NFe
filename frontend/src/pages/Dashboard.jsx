@@ -1,5 +1,6 @@
-import { AlertCircle, Archive, FileInput, FileOutput, FileText, Truck } from "lucide-react";
+import { AlertCircle, Archive, Building2, FileInput, FileOutput, FileSearch, FileText, Link2, Truck } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "../components/ui/Badge.jsx";
 import { Card } from "../components/ui/Card.jsx";
 import { Table } from "../components/ui/Table.jsx";
@@ -20,6 +21,12 @@ export function Dashboard() {
 
   const bars = dashboard.monthlyVolume.length ? dashboard.monthlyVolume : [{ month: "Atual", documents: 1 }];
   const max = Math.max(...bars.map((item) => item.documents), 1);
+  const modules = [
+    { title: "Empresas", text: "Cadastro e certificado A1 no mesmo fluxo.", to: "/app/empresas", icon: Building2 },
+    { title: "Captura", text: "Busca por SEFAZ, NFS-e, NSU, chave e periodo.", to: "/app/captura", icon: FileSearch },
+    { title: "Documentos", text: "XML, PDF, DANFE, CT-e e manifestacao.", to: "/app/documentos", icon: FileText },
+    { title: "Integracoes", text: "Contratos fiscais, contador e armazenamento.", to: "/app/integracoes", icon: Link2 }
+  ];
 
   return (
     <div className="space-y-6">
@@ -45,13 +52,18 @@ export function Dashboard() {
             ))}
           </div>
         </Card>
-        <Card title="Saude fiscal">
-          <div className="space-y-4">
-            {["Backup diario ativo", "Certificado A1 valido", "Fechamento de junho em revisao"].map((item, index) => (
-              <div key={item} className="flex items-center justify-between rounded-md bg-slate-50 p-4">
-                <span className="font-semibold text-slate-700">{item}</span>
-                <Badge tone={index === 2 ? "yellow" : "green"}>{index === 2 ? "Atencao" : "OK"}</Badge>
-              </div>
+        <Card title="Modulos operacionais">
+          <div className="space-y-3">
+            {modules.map(({ title, text, to, icon: Icon }) => (
+              <Link key={title} to={to} className="flex items-center gap-3 rounded-md border border-slate-200 p-3 transition hover:border-ocean hover:bg-slate-50">
+                <span className="grid h-10 w-10 place-items-center rounded-md bg-ocean/10 text-ocean">
+                  <Icon size={18} />
+                </span>
+                <span>
+                  <strong className="block text-sm text-navy">{title}</strong>
+                  <span className="text-xs text-slate-500">{text}</span>
+                </span>
+              </Link>
             ))}
           </div>
         </Card>

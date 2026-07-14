@@ -3,11 +3,13 @@ import React from "react";
 import { Badge } from "../components/ui/Badge.jsx";
 import { Card } from "../components/ui/Card.jsx";
 
+// Esses cards descrevem contratos/capacidades da aplicacao, nao dados de uma
+// empresa especifica. Status "Configuravel" exige credencial/adaptador real.
 const integrations = [
   { name: "SEFAZ", detail: "NF-e, CT-e, NFC-e e MDF-e por Distribuicao DFe.", status: "Contrato pronto", icon: FileText },
   { name: "NFS-e municipal", detail: "Provider por prefeitura ou Portal Nacional NFS-e.", status: "Configuravel", icon: Link2 },
-  { name: "Contabilidade", detail: "Exportacao por competencia e download em lote.", status: "Operacional", icon: Database },
-  { name: "Storage S3", detail: "XML/PDF e backup automatico para producao.", status: "Planejado", icon: Cloud }
+  { name: "Contabilidade", detail: "Atendimento por filtros, XML/PDF em lote e auditoria de downloads.", status: "Operacional", icon: Database },
+  { name: "Storage local", detail: "XML, metadados e historico gravados em armazenamento local ignorado pelo Git.", status: "Operacional", icon: Cloud }
 ];
 
 export function Integrations() {

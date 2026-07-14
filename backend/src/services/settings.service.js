@@ -1,8 +1,10 @@
 export function getSettings() {
+  // Retorna apenas configuracoes tecnicas reais do ambiente local.
+  // Dados de conta/empresa devem vir de Auth e Empresas, nunca de placeholders.
   return {
     account: {
-      owner: "Administrador",
-      email: "admin@safe-nfe.local",
+      owner: null,
+      email: null,
       plan: "Local"
     },
     company: {
@@ -11,9 +13,10 @@ export function getSettings() {
     },
     storage: {
       xmlRetentionYears: 5,
-      backupFrequency: "Diario",
-      danfeGeneration: true
+      backupFrequency: null,
+      danfeGeneration: true,
+      mode: "local-json"
     },
-    futureIntegrations: ["SEFAZ Distribuicao DF-e", "Prefeituras NFS-e", "Certificado A1", "Webhooks"]
+    enabledModules: ["Empresas", "Certificado A1", "Captura", "Documentos", "Auditoria"]
   };
 }
