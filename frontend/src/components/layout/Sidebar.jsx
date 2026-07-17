@@ -1,4 +1,4 @@
-import { Building2, FileSearch, FileText, History, Home, Link2 } from "lucide-react";
+import { Building2, FileSearch, FileText, History, Home, Link2, Settings } from "lucide-react";
 import React from "react";
 import { NavLink } from "react-router-dom";
 
@@ -28,7 +28,7 @@ export function Sidebar() {
           <span className="text-xs text-blue-100">Cofre fiscal eletronico</span>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-3 py-4">
         {links.map(({ to, label, icon: Icon }) => (
           // NavLink sabe sozinho se a rota atual esta ativa. Usamos isso para
           // pintar o botao selecionado sem controlar estado manualmente.
@@ -48,6 +48,22 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <div className="border-t border-white/10 px-3 py-4">
+        <NavLink
+          to="/app/configuracoes"
+          title="Configuracoes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-md px-4 py-3 text-sm font-semibold transition ${
+              isActive ? "bg-white text-navy" : "text-blue-50 hover:bg-white/10"
+            }`
+          }
+        >
+          <Settings className="shrink-0" size={18} />
+          <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+            Configuracoes
+          </span>
+        </NavLink>
+      </div>
     </aside>
   );
 }

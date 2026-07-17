@@ -17,7 +17,8 @@ BEGIN;
 -- CONFIGURACAO, CONTAS, ACESSO E MULTIEMPRESA
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE configuracoes_sistema (
+-- Configuracoes globais de funcionamento, limites e armazenamento do sistema.
+CREATE TABLE app_config (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     identificador UUID NOT NULL DEFAULT gen_random_uuid(),
@@ -30,41 +31,28 @@ CREATE TABLE configuracoes_sistema (
     storage_padrao VARCHAR(20) NOT NULL DEFAULT 'banco',
     parametros JSONB NOT NULL DEFAULT '{}'::JSONB,
     datahoracad TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT configuracoes_sistema_identificador_uq UNIQUE (identificador),
-    CONSTRAINT configuracoes_sistema_ambiente_ck CHECK (ambiente_padrao IN (1, 2)),
-    CONSTRAINT configuracoes_sistema_storage_ck CHECK (storage_padrao IN ('banco', 'local', 's3')),
-    CONSTRAINT configuracoes_sistema_upload_ck CHECK (tamanho_maximo_upload_bytes > 0),
-    CONSTRAINT configuracoes_sistema_zip_ck CHECK (quantidade_maxima_zip > 0)
+    CONSTRAINT app_config_identificador_uq UNIQUE (identificador),
+    CONSTRAINT app_config_ambiente_ck CHECK (ambiente_padrao IN (1, 2)),
+    CONSTRAINT app_config_storage_ck CHECK (storage_padrao IN ('banco', 'local', 's3')),
+    CONSTRAINT app_config_upload_ck CHECK (tamanho_maximo_upload_bytes > 0),
+    CONSTRAINT app_config_zip_ck CHECK (quantidade_maxima_zip > 0)
 );
 
--- Senha em texto simples somente durante a fase solicitada de prototipo.
--- Antes de qualquer publicacao, trocar senha por senha_hash (Argon2id/bcrypt),
--- invalidar todas as senhas existentes e nunca selecionar esse campo em APIs.
-CREATE TABLE usuarios (
+-- Cadastro central de cidades usado por clientes e usuarios.
+CREATE TABLE cidades (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     identificador UUID NOT NULL DEFAULT gen_random_uuid(),
     datahoraalt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    nome VARCHAR(150) NOT NULL,
-    email VARCHAR(254) NOT NULL,
-    login VARCHAR(100) NOT NULL,
-    senha TEXT NOT NULL,
-    perfil_global VARCHAR(20) NOT NULL DEFAULT 'usuario',
-    telefone VARCHAR(30),
-    idioma VARCHAR(10) NOT NULL DEFAULT 'pt-BR',
-    fuso_horario VARCHAR(50) NOT NULL DEFAULT 'America/Sao_Paulo',
-    ultimo_login_em TIMESTAMPTZ,
-    tentativas_login INTEGER NOT NULL DEFAULT 0,
-    bloqueado_ate TIMESTAMPTZ,
-    trocar_senha BOOLEAN NOT NULL DEFAULT FALSE,
+    codigo_ibge VARCHAR(7) NOT NULL,
+    nome VARCHAR(120) NOT NULL,
+    uf CHAR(2) NOT NULL,
     datahoracad TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT usuarios_identificador_uq UNIQUE (identificador),
-    CONSTRAINT usuarios_perfil_ck CHECK (perfil_global IN ('superadmin', 'admin', 'usuario', 'suporte')),
-    CONSTRAINT usuarios_tentativas_ck CHECK (tentativas_login >= 0)
+    CONSTRAINT cidades_identificador_uq UNIQUE (identificador),
+    CONSTRAINT cidades_codigo_ibge_uq UNIQUE (codigo_ibge),
+    CONSTRAINT cidades_codigo_ibge_ck CHECK (codigo_ibge ~ '^[0-9]{7}$'),
+    CONSTRAINT cidades_uf_ck CHECK (uf ~ '^[A-Z]{2}$')
 );
-
-CREATE UNIQUE INDEX usuarios_email_uq ON usuarios (LOWER(email));
-CREATE UNIQUE INDEX usuarios_login_uq ON usuarios (LOWER(login));
 
 -- Cliente e o tenant/assinante; pode ser empresa ou escritorio contabil.
 CREATE TABLE clientes (
@@ -72,6 +60,7 @@ CREATE TABLE clientes (
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     identificador UUID NOT NULL DEFAULT gen_random_uuid(),
     datahoraalt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    chavecidade BIGINT NOT NULL,
     tipo VARCHAR(20) NOT NULL DEFAULT 'empresa',
     nome VARCHAR(180) NOT NULL,
     cpf_cnpj VARCHAR(14),
@@ -85,34 +74,48 @@ CREATE TABLE clientes (
     datahoracad TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT clientes_identificador_uq UNIQUE (identificador),
     CONSTRAINT clientes_cpf_cnpj_uq UNIQUE (cpf_cnpj),
+    CONSTRAINT clientes_cidade_fk FOREIGN KEY (chavecidade) REFERENCES cidades (chave),
     CONSTRAINT clientes_tipo_ck CHECK (tipo IN ('empresa', 'contabilidade', 'interno')),
     CONSTRAINT clientes_documento_ck CHECK (cpf_cnpj IS NULL OR cpf_cnpj ~ '^([0-9]{11}|[0-9]{14})$'),
     CONSTRAINT clientes_armazenamento_ck CHECK (armazenamento_utilizado_bytes >= 0)
 );
 
-CREATE TABLE clientes_usuarios (
+-- Senha em texto simples somente durante a fase solicitada de prototipo.
+-- Antes de qualquer publicacao, trocar senha por senha_hash (Argon2id/bcrypt),
+-- invalidar todas as senhas existentes e nunca selecionar esse campo em APIs.
+-- Usuarios pertencem diretamente a um cliente, sem tabela intermediaria.
+CREATE TABLE usuarios (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     identificador UUID NOT NULL DEFAULT gen_random_uuid(),
     datahoraalt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    cliente_chave BIGINT NOT NULL,
-    usuario_chave BIGINT NOT NULL,
-    perfil VARCHAR(20) NOT NULL DEFAULT 'consulta',
-    pode_gerenciar_usuarios BOOLEAN NOT NULL DEFAULT FALSE,
-    pode_gerenciar_empresas BOOLEAN NOT NULL DEFAULT FALSE,
-    pode_gerenciar_certificados BOOLEAN NOT NULL DEFAULT FALSE,
-    pode_consultar BOOLEAN NOT NULL DEFAULT TRUE,
-    pode_baixar BOOLEAN NOT NULL DEFAULT TRUE,
-    pode_manifestar BOOLEAN NOT NULL DEFAULT FALSE,
-    pode_exportar BOOLEAN NOT NULL DEFAULT FALSE,
+    chavecliente BIGINT NOT NULL,
+    chavecidade BIGINT NOT NULL,
+    nome VARCHAR(150) NOT NULL,
+    email VARCHAR(254) NOT NULL,
+    login VARCHAR(100) NOT NULL,
+    senha TEXT NOT NULL,
+    perfil_global VARCHAR(20) NOT NULL DEFAULT 'usuario',
+    telefone VARCHAR(30),
+    idioma VARCHAR(10) NOT NULL DEFAULT 'pt-BR',
+    ultimo_login_em TIMESTAMPTZ,
+    tentativas_login INTEGER NOT NULL DEFAULT 0,
+    bloqueado_ate TIMESTAMPTZ,
+    trocar_senha BOOLEAN NOT NULL DEFAULT FALSE,
     datahoracad TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT clientes_usuarios_identificador_uq UNIQUE (identificador),
-    CONSTRAINT clientes_usuarios_vinculo_uq UNIQUE (cliente_chave, usuario_chave),
-    CONSTRAINT clientes_usuarios_cliente_fk FOREIGN KEY (cliente_chave) REFERENCES clientes (chave),
-    CONSTRAINT clientes_usuarios_usuario_fk FOREIGN KEY (usuario_chave) REFERENCES usuarios (chave),
-    CONSTRAINT clientes_usuarios_perfil_ck CHECK (perfil IN ('admin', 'operador', 'contador', 'consulta'))
+    CONSTRAINT usuarios_identificador_uq UNIQUE (identificador),
+    CONSTRAINT usuarios_cliente_fk FOREIGN KEY (chavecliente) REFERENCES clientes (chave),
+    CONSTRAINT usuarios_cidade_fk FOREIGN KEY (chavecidade) REFERENCES cidades (chave),
+    CONSTRAINT usuarios_perfil_ck CHECK (perfil_global IN ('superadmin', 'admin', 'usuario', 'suporte')),
+    CONSTRAINT usuarios_tentativas_ck CHECK (tentativas_login >= 0)
 );
 
+CREATE UNIQUE INDEX usuarios_email_uq ON usuarios (LOWER(email));
+CREATE UNIQUE INDEX usuarios_login_uq ON usuarios (LOWER(login));
+CREATE INDEX usuarios_cliente_idx ON usuarios (chavecliente, ativo);
+CREATE INDEX cidades_nome_uf_idx ON cidades (uf, LOWER(nome));
+
+-- Empresas fiscais administradas por cada cliente, incluindo cadastro e monitoramento.
 CREATE TABLE empresas (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -167,26 +170,7 @@ CREATE TABLE empresas (
     CONSTRAINT empresas_status_ck CHECK (status_fiscal IN ('ativa', 'inativa', 'pendente_certificado', 'certificado_vencido', 'erro'))
 );
 
--- Restringe usuarios a empresas especificas. Sem linhas ativas, um admin do
--- cliente pode receber acesso a todas conforme regra da aplicacao.
-CREATE TABLE empresas_usuarios (
-    chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    ativo BOOLEAN NOT NULL DEFAULT TRUE,
-    identificador UUID NOT NULL DEFAULT gen_random_uuid(),
-    datahoraalt TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    empresa_chave BIGINT NOT NULL,
-    usuario_chave BIGINT NOT NULL,
-    pode_consultar BOOLEAN NOT NULL DEFAULT TRUE,
-    pode_baixar BOOLEAN NOT NULL DEFAULT TRUE,
-    pode_manifestar BOOLEAN NOT NULL DEFAULT FALSE,
-    pode_alterar BOOLEAN NOT NULL DEFAULT FALSE,
-    datahoracad TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT empresas_usuarios_identificador_uq UNIQUE (identificador),
-    CONSTRAINT empresas_usuarios_vinculo_uq UNIQUE (empresa_chave, usuario_chave),
-    CONSTRAINT empresas_usuarios_empresa_fk FOREIGN KEY (empresa_chave) REFERENCES empresas (chave),
-    CONSTRAINT empresas_usuarios_usuario_fk FOREIGN KEY (usuario_chave) REFERENCES usuarios (chave)
-);
-
+-- Certificados digitais das empresas usados para autenticacao e operacoes fiscais.
 CREATE TABLE certificados_digitais (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -221,6 +205,7 @@ CREATE TABLE certificados_digitais (
 -- INTEGRACOES, CAPTURA, NSU E IMPORTACAO
 -- ---------------------------------------------------------------------------
 
+-- Integracoes externas com SEFAZ, provedores de NFS-e, ERPs, e-mail, APIs e storage.
 CREATE TABLE integracoes (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -323,6 +308,7 @@ CREATE TABLE consultas_fiscais (
     )
 );
 
+-- Erros ocorridos nas etapas de uma consulta fiscal, com detalhes para reprocessamento.
 CREATE TABLE consultas_fiscais_erros (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -344,6 +330,7 @@ CREATE TABLE consultas_fiscais_erros (
 -- PARTICIPANTES E DOCUMENTO FISCAL
 -- ---------------------------------------------------------------------------
 
+-- Pessoas e empresas que participam dos documentos fiscais em diferentes papeis.
 CREATE TABLE participantes_fiscais (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -370,6 +357,7 @@ CREATE TABLE participantes_fiscais (
 CREATE UNIQUE INDEX participantes_cpf_cnpj_uq
     ON participantes_fiscais (cpf_cnpj) WHERE cpf_cnpj IS NOT NULL;
 
+-- Enderecos fiscais, de entrega, retirada ou cobranca dos participantes.
 CREATE TABLE participantes_enderecos (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -554,6 +542,7 @@ CREATE TABLE documentos_arquivos (
     CONSTRAINT documentos_arquivos_versao_ck CHECK (versao > 0)
 );
 
+-- Itens de produtos ou servicos detalhados em cada documento fiscal.
 CREATE TABLE documentos_itens (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -629,6 +618,7 @@ CREATE TABLE documentos_itens_tributos (
     CONSTRAINT itens_tributos_tipo_ck CHECK (tributo IN ('ICMS', 'ICMS_ST', 'FCP', 'FCP_ST', 'IPI', 'II', 'PIS', 'COFINS', 'ISSQN', 'IBS_UF', 'IBS_MUN', 'CBS', 'IS', 'OUTRO'))
 );
 
+-- Formas e valores de pagamento informados no documento fiscal.
 CREATE TABLE documentos_pagamentos (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -652,6 +642,7 @@ CREATE TABLE documentos_pagamentos (
     CONSTRAINT documentos_pagamentos_ordem_ck CHECK (ordem > 0)
 );
 
+-- Parcelas e vencimentos de cobranca vinculados ao documento fiscal.
 CREATE TABLE documentos_parcelas (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -667,6 +658,7 @@ CREATE TABLE documentos_parcelas (
     CONSTRAINT documentos_parcelas_documento_fk FOREIGN KEY (documento_fiscal_chave) REFERENCES documentos_fiscais (chave)
 );
 
+-- Dados gerais de frete, veiculo, volumes e pesos do documento fiscal.
 CREATE TABLE documentos_transporte (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -721,6 +713,7 @@ CREATE TABLE documentos_referencias (
 -- DETALHES DE CT-E/MDF-E/NFS-E E EVENTOS
 -- ---------------------------------------------------------------------------
 
+-- Informacoes especificas do CT-e, incluindo rota, carga, modal e composicao do frete.
 CREATE TABLE ctes_detalhes (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -758,6 +751,7 @@ CREATE TABLE ctes_detalhes (
     CONSTRAINT ctes_detalhes_documento_fk FOREIGN KEY (documento_fiscal_chave) REFERENCES documentos_fiscais (chave)
 );
 
+-- Componentes que formam o valor da prestacao de transporte de um CT-e.
 CREATE TABLE ctes_componentes_valor (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -772,6 +766,7 @@ CREATE TABLE ctes_componentes_valor (
     CONSTRAINT ctes_componentes_cte_fk FOREIGN KEY (cte_detalhe_chave) REFERENCES ctes_detalhes (chave)
 );
 
+-- Unidades federativas percorridas pelo transporte, na ordem informada no CT-e.
 CREATE TABLE ctes_percurso (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -787,6 +782,7 @@ CREATE TABLE ctes_percurso (
     CONSTRAINT ctes_percurso_ordem_ck CHECK (ordem > 0)
 );
 
+-- Seguros de carga associados a documentos de transporte, apolices e averbacoes.
 CREATE TABLE documentos_seguros (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -804,6 +800,7 @@ CREATE TABLE documentos_seguros (
     CONSTRAINT documentos_seguros_documento_fk FOREIGN KEY (documento_fiscal_chave) REFERENCES documentos_fiscais (chave)
 );
 
+-- Informacoes especificas da NFS-e, RPS, servico, ISS e demais retencoes.
 CREATE TABLE nfse_detalhes (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -886,6 +883,7 @@ CREATE TABLE documentos_eventos (
 -- ORGANIZACAO, COMPARTILHAMENTO, EXPORTACOES E AUDITORIA
 -- ---------------------------------------------------------------------------
 
+-- Etiquetas personalizadas por cliente para organizar documentos fiscais.
 CREATE TABLE etiquetas (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -901,6 +899,7 @@ CREATE TABLE etiquetas (
     CONSTRAINT etiquetas_cor_ck CHECK (cor IS NULL OR cor ~ '^#[0-9A-Fa-f]{6}$')
 );
 
+-- Vincula etiquetas aos documentos fiscais e registra o usuario responsavel.
 CREATE TABLE documentos_etiquetas (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -943,6 +942,7 @@ CREATE TABLE compartilhamentos (
     CONSTRAINT compartilhamentos_downloads_ck CHECK (quantidade_downloads >= 0 AND (limite_downloads IS NULL OR limite_downloads > 0))
 );
 
+-- Solicitacoes de exportacao de documentos e acompanhamento da geracao dos arquivos.
 CREATE TABLE exportacoes (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -972,6 +972,7 @@ CREATE TABLE exportacoes (
     CONSTRAINT exportacoes_quantidade_ck CHECK (quantidade_documentos >= 0)
 );
 
+-- Credenciais de API dos clientes, com escopo, restricoes de rede e validade.
 CREATE TABLE chaves_api (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -995,6 +996,7 @@ CREATE TABLE chaves_api (
     CONSTRAINT chaves_api_usuario_fk FOREIGN KEY (usuario_chave) REFERENCES usuarios (chave)
 );
 
+-- Historico de acoes e alteracoes realizadas no sistema para rastreabilidade.
 CREATE TABLE auditoria (
     chave BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -1028,9 +1030,7 @@ CREATE TABLE auditoria (
 -- INDICES PARA OS FLUXOS REAIS DA APLICACAO
 -- ---------------------------------------------------------------------------
 
-CREATE INDEX clientes_usuarios_usuario_idx ON clientes_usuarios (usuario_chave, ativo);
 CREATE INDEX empresas_cliente_ativo_idx ON empresas (cliente_chave, ativo);
-CREATE INDEX empresas_usuarios_usuario_idx ON empresas_usuarios (usuario_chave, ativo);
 CREATE INDEX certificados_empresa_validade_idx ON certificados_digitais (empresa_chave, valido_ate DESC) WHERE ativo = TRUE;
 CREATE INDEX integracoes_empresa_tipo_idx ON integracoes (empresa_chave, tipo, ativo);
 CREATE INDEX distribuicao_proxima_consulta_idx ON distribuicao_dfe_controle (proxima_consulta_em) WHERE ativo = TRUE;
@@ -1065,11 +1065,40 @@ CREATE INDEX auditoria_empresa_data_idx ON auditoria (empresa_chave, dataevento 
 CREATE INDEX auditoria_usuario_data_idx ON auditoria (usuario_chave, dataevento DESC);
 CREATE INDEX auditoria_entidade_idx ON auditoria (entidade, entidade_chave, dataevento DESC);
 
--- Usuario inicial apenas para desenvolvimento local.
-INSERT INTO usuarios (nome, email, login, senha, perfil_global, trocar_senha)
-VALUES ('Administrador', 'admin@safe-nfe.local', 'admin', '123456', 'superadmin', FALSE);
+-- Dados iniciais apenas para desenvolvimento local.
+INSERT INTO cidades (codigo_ibge, nome, uf)
+VALUES ('4205407', 'Florianopolis', 'SC');
 
-INSERT INTO configuracoes_sistema (nome_sistema)
+INSERT INTO clientes (chavecidade, tipo, nome, email)
+SELECT chave, 'interno', 'Safe NFe', 'admin@safe-nfe.local'
+FROM cidades
+WHERE codigo_ibge = '4205407';
+
+INSERT INTO usuarios (
+    chavecliente,
+    chavecidade,
+    nome,
+    email,
+    login,
+    senha,
+    perfil_global,
+    trocar_senha
+)
+SELECT
+    clientes.chave,
+    cidades.chave,
+    'Administrador',
+    'admin@safe-nfe.local',
+    'admin',
+    '123456',
+    'superadmin',
+    FALSE
+FROM clientes
+JOIN cidades ON cidades.codigo_ibge = '4205407'
+WHERE clientes.nome = 'Safe NFe'
+  AND clientes.tipo = 'interno';
+
+INSERT INTO app_config (nome_sistema)
 VALUES ('Safe NFe');
 
 COMMIT;

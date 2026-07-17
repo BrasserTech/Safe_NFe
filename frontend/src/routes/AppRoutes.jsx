@@ -10,6 +10,7 @@ import { Integrations } from "../pages/Integrations.jsx";
 import { LandingPage } from "../pages/LandingPage.jsx";
 import { Login } from "../pages/Login.jsx";
 import { Register } from "../pages/Register.jsx";
+import { Settings } from "../pages/Settings.jsx";
 
 function ProtectedRoute() {
   const token = localStorage.getItem("safe-nfe-token");
@@ -39,7 +40,7 @@ export function AppRoutes() {
         <Route path="contador" element={<Navigate to="/app/integracoes" replace />} />
         <Route path="integracoes" element={<Integrations />} />
         <Route path="auditoria" element={<Audit />} />
-        <Route path="configuracoes" element={<Navigate to="/app/integracoes" replace />} />
+        <Route path="configuracoes" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
