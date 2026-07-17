@@ -27,7 +27,12 @@ export async function login({ email, username, password }) {
     item.username?.toLowerCase() === loginId
   ));
 
-  if (!user || !await bcrypt.compare(password || "", user.passwordHash)) {
+  const storedPassword = String(user?.passwordHash || "");
+  const passwordMatches = storedPassword.startsWith("$2")
+    ? await bcrypt.compare(password || "", storedPassword)
+    : storedPassword === String(password || "");
+
+  if (!user || !passwordMatches) {
     const error = new Error("Usuario ou senha invalidos.");
     error.statusCode = 401;
     throw error;

@@ -12,6 +12,7 @@ frontend/dist/
 .env
 .env.*
 !.env.example
+backend/generated/
 
 # Logs
 *.log

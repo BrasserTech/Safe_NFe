@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../generated/client"
 }
 
 datasource db {
@@ -7,116 +8,1030 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(ADMIN)
-  companyId    String?
-  company      Company? @relation(fields: [companyId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model app_config {
+  chave                       BigInt   @id @default(autoincrement())
+  ativo                       Boolean  @default(true)
+  identificador               String   @unique(map: "app_config_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                 DateTime @default(now()) @db.Timestamptz(6)
+  nome_sistema                String   @default("Safe NFe") @db.VarChar(120)
+  ambiente_padrao             Int      @default(2) @db.SmallInt
+  dias_retencao_documentos    Int?
+  tamanho_maximo_upload_bytes BigInt   @default(10485760)
+  quantidade_maxima_zip       Int      @default(500)
+  storage_padrao              String   @default("banco") @db.VarChar(20)
+  parametros                  Json     @default("{}")
+  datahoracad                 DateTime @default(now()) @db.Timestamptz(6)
 }
 
-model Company {
-  id                 String       @id @default(cuid())
-  legalName          String
-  tradeName          String?
-  cnpj               String       @unique
-  certificateLabel   String?
-  certificateExpires DateTime?
-  status             CompanyStatus @default(ACTIVE)
-  users              User[]
-  documents          FiscalDocument[]
-  certificates       Certificate[]
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model auditoria {
+  chave                  BigInt    @id @default(autoincrement())
+  ativo                  Boolean   @default(true)
+  identificador          String    @unique(map: "auditoria_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime  @default(now()) @db.Timestamptz(6)
+  cliente_chave          BigInt?
+  empresa_chave          BigInt?
+  usuario_chave          BigInt?
+  entidade               String    @db.VarChar(80)
+  entidade_chave         BigInt?
+  entidade_identificador String?   @db.Uuid
+  acao                   String    @db.VarChar(40)
+  resultado              String    @default("sucesso") @db.VarChar(20)
+  descricao              String?
+  dados_anteriores       Json?
+  dados_novos            Json?
+  metadados              Json      @default("{}")
+  endereco_ip            String?   @db.Inet
+  user_agent             String?
+  correlacao_id          String?   @db.Uuid
+  dataevento             DateTime  @default(now()) @db.Timestamptz(6)
+  datahoracad            DateTime  @default(now()) @db.Timestamptz(6)
+  clientes               clientes? @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "auditoria_cliente_fk")
+  empresas               empresas? @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "auditoria_empresa_fk")
+  usuarios               usuarios? @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "auditoria_usuario_fk")
+
+  @@index([cliente_chave, dataevento(sort: Desc)], map: "auditoria_cliente_data_idx")
+  @@index([empresa_chave, dataevento(sort: Desc)], map: "auditoria_empresa_data_idx")
+  @@index([entidade, entidade_chave, dataevento(sort: Desc)], map: "auditoria_entidade_idx")
+  @@index([usuario_chave, dataevento(sort: Desc)], map: "auditoria_usuario_data_idx")
 }
 
-model Certificate {
-  id                String   @id @default(cuid())
-  companyId         String
-  company           Company  @relation(fields: [companyId], references: [id])
-  type              String   @default("A1")
-  holder            String
-  document          String
-  expiresAt         DateTime
-  status            String
-  storagePath       String
-  encryptedPassword String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model certificados_digitais {
+  chave                    BigInt               @id @default(autoincrement())
+  ativo                    Boolean              @default(true)
+  identificador            String               @unique(map: "certificados_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt              DateTime             @default(now()) @db.Timestamptz(6)
+  empresa_chave            BigInt
+  tipo                     String               @default("A1") @db.VarChar(10)
+  titular                  String               @db.VarChar(255)
+  cpf_cnpj                 String               @db.VarChar(14)
+  numero_serie             String?              @db.VarChar(180)
+  emissor                  String?              @db.VarChar(255)
+  valido_de                DateTime?            @db.Timestamptz(6)
+  valido_ate               DateTime             @db.Timestamptz(6)
+  impressao_digital_sha256 String?              @unique(map: "certificados_impressao_uq") @db.Char(64)
+  storage_chave            String               @db.VarChar(500)
+  senha_criptografada      String
+  algoritmo_criptografia   String               @default("aes-256-gcm") @db.VarChar(30)
+  status                   String               @default("valido") @db.VarChar(30)
+  ultimo_teste_em          DateTime?            @db.Timestamptz(6)
+  mensagem_ultimo_teste    String?
+  usuario_cadastro_chave   BigInt?
+  datahoracad              DateTime             @default(now()) @db.Timestamptz(6)
+  empresas                 empresas             @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "certificados_empresa_fk")
+  usuarios                 usuarios?            @relation(fields: [usuario_cadastro_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "certificados_usuario_fk")
+  consultas_fiscais        consultas_fiscais[]
+  documentos_eventos       documentos_eventos[]
 }
 
-model FiscalDocument {
-  id                 String              @id @default(cuid())
-  companyId          String
-  company            Company             @relation(fields: [companyId], references: [id])
-  number             String
-  accessKey          String              @unique
-  type               DocumentType
-  direction          DocumentDirection
-  issuerName         String
-  issuerCnpj         String
-  recipientName      String?
-  recipientCnpj      String?
-  issuedAt           DateTime
-  amount             Decimal             @db.Decimal(12, 2)
-  status             DocumentStatus      @default(AUTHORIZED)
-  manifestStatus     ManifestStatus      @default(PENDING)
-  xmlStoragePath     String?
-  danfeStoragePath   String?
-  source             String?
-  nsu                String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+model chaves_api {
+  chave            BigInt    @id @default(autoincrement())
+  ativo            Boolean   @default(true)
+  identificador    String    @unique(map: "chaves_api_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt      DateTime  @default(now()) @db.Timestamptz(6)
+  cliente_chave    BigInt
+  empresa_chave    BigInt?
+  usuario_chave    BigInt
+  nome             String    @db.VarChar(100)
+  prefixo          String    @db.VarChar(20)
+  segredo_hash     String    @unique(map: "chaves_api_segredo_uq") @db.Char(64)
+  permissoes       Json      @default("[]")
+  redes_permitidas Json      @default("[]")
+  expira_em        DateTime? @db.Timestamptz(6)
+  ultimo_uso_em    DateTime? @db.Timestamptz(6)
+  datahoracad      DateTime  @default(now()) @db.Timestamptz(6)
+  clientes         clientes  @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "chaves_api_cliente_fk")
+  empresas         empresas? @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "chaves_api_empresa_fk")
+  usuarios         usuarios  @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "chaves_api_usuario_fk")
 }
 
-model AuditLog {
-  id        String   @id @default(cuid())
-  type      String
-  title     String
-  detail    String
-  metadata  Json?
-  createdAt DateTime @default(now())
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model cidades {
+  chave         BigInt     @id @default(autoincrement())
+  ativo         Boolean    @default(true)
+  identificador String     @unique(map: "cidades_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt   DateTime   @default(now()) @db.Timestamptz(6)
+  codigo_ibge   String     @unique(map: "cidades_codigo_ibge_uq") @db.VarChar(7)
+  nome          String     @db.VarChar(120)
+  uf            String     @db.Char(2)
+  datahoracad   DateTime   @default(now()) @db.Timestamptz(6)
+  clientes      clientes[]
+  usuarios      usuarios[]
 }
 
-enum UserRole {
-  ADMIN
-  ACCOUNTANT
-  VIEWER
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model clientes {
+  chave                         BigInt              @id @default(autoincrement())
+  ativo                         Boolean             @default(true)
+  identificador                 String              @unique(map: "clientes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                   DateTime            @default(now()) @db.Timestamptz(6)
+  chavecidade                   BigInt
+  tipo                          String              @default("empresa") @db.VarChar(20)
+  nome                          String              @db.VarChar(180)
+  cpf_cnpj                      String?             @unique(map: "clientes_cpf_cnpj_uq") @db.VarChar(14)
+  email                         String?             @db.VarChar(254)
+  telefone                      String?             @db.VarChar(30)
+  plano                         String?             @db.VarChar(50)
+  limite_empresas               Int?
+  limite_armazenamento_bytes    BigInt?
+  armazenamento_utilizado_bytes BigInt              @default(0)
+  vencimento_assinatura         DateTime?           @db.Date
+  datahoracad                   DateTime            @default(now()) @db.Timestamptz(6)
+  auditoria                     auditoria[]
+  chaves_api                    chaves_api[]
+  cidades                       cidades             @relation(fields: [chavecidade], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "clientes_cidade_fk")
+  compartilhamentos             compartilhamentos[]
+  empresas                      empresas[]
+  etiquetas                     etiquetas[]
+  exportacoes                   exportacoes[]
+  integracoes                   integracoes[]
+  usuarios                      usuarios[]
 }
 
-enum CompanyStatus {
-  ACTIVE
-  PENDING_CERTIFICATE
-  INACTIVE
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model compartilhamentos {
+  chave                BigInt    @id @default(autoincrement())
+  ativo                Boolean   @default(true)
+  identificador        String    @unique(map: "compartilhamentos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt          DateTime  @default(now()) @db.Timestamptz(6)
+  cliente_chave        BigInt
+  usuario_chave        BigInt
+  token_hash           String    @unique(map: "compartilhamentos_token_uq") @db.Char(64)
+  descricao            String?   @db.VarChar(180)
+  filtros              Json      @default("{}")
+  permite_xml          Boolean   @default(true)
+  permite_pdf          Boolean   @default(true)
+  senha_hash           String?
+  expira_em            DateTime  @db.Timestamptz(6)
+  limite_downloads     Int?
+  quantidade_downloads Int       @default(0)
+  ultimo_download_em   DateTime? @db.Timestamptz(6)
+  datahoracad          DateTime  @default(now()) @db.Timestamptz(6)
+  clientes             clientes  @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "compartilhamentos_cliente_fk")
+  usuarios             usuarios  @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "compartilhamentos_usuario_fk")
 }
 
-enum DocumentType {
-  NFE
-  NFCE
-  NFSE
-  CTE
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model consultas_fiscais {
+  chave                   BigInt                    @id @default(autoincrement())
+  ativo                   Boolean                   @default(true)
+  identificador           String                    @unique(map: "consultas_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt             DateTime                  @default(now()) @db.Timestamptz(6)
+  empresa_chave           BigInt
+  certificado_chave       BigInt?
+  integracao_chave        BigInt?
+  usuario_chave           BigInt?
+  origem                  String                    @db.VarChar(20)
+  tipo_documento          String?                   @db.VarChar(10)
+  ambiente                Int                       @default(1) @db.SmallInt
+  modo_consulta           String                    @db.VarChar(30)
+  chave_acesso            String?                   @db.VarChar(44)
+  nsu_inicial             String?                   @db.VarChar(30)
+  ultimo_nsu              String?                   @db.VarChar(30)
+  max_nsu                 String?                   @db.VarChar(30)
+  data_inicial            DateTime?                 @db.Date
+  data_final              DateTime?                 @db.Date
+  status                  String                    @default("pendente") @db.VarChar(20)
+  prioridade              Int                       @default(5) @db.SmallInt
+  tentativa               Int                       @default(0)
+  codigo_retorno          String?                   @db.VarChar(20)
+  mensagem_retorno        String?
+  quantidade_localizada   Int                       @default(0)
+  quantidade_nova         Int                       @default(0)
+  quantidade_duplicada    Int                       @default(0)
+  quantidade_erro         Int                       @default(0)
+  requisicao              Json?
+  resposta_resumo         Json?
+  iniciada_em             DateTime?                 @db.Timestamptz(6)
+  finalizada_em           DateTime?                 @db.Timestamptz(6)
+  proxima_tentativa_em    DateTime?                 @db.Timestamptz(6)
+  datahoracad             DateTime                  @default(now()) @db.Timestamptz(6)
+  certificados_digitais   certificados_digitais?    @relation(fields: [certificado_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "consultas_certificado_fk")
+  empresas                empresas                  @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "consultas_empresa_fk")
+  integracoes             integracoes?              @relation(fields: [integracao_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "consultas_integracao_fk")
+  usuarios                usuarios?                 @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "consultas_usuario_fk")
+  consultas_fiscais_erros consultas_fiscais_erros[]
+  documentos_fiscais      documentos_fiscais[]
+
+  @@index([empresa_chave, datahoracad(sort: Desc)], map: "consultas_empresa_data_idx")
 }
 
-enum DocumentDirection {
-  INBOUND
-  OUTBOUND
+model consultas_fiscais_erros {
+  chave                 BigInt            @id @default(autoincrement())
+  ativo                 Boolean           @default(true)
+  identificador         String            @unique(map: "consultas_erros_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt           DateTime          @default(now()) @db.Timestamptz(6)
+  consulta_fiscal_chave BigInt
+  etapa                 String            @db.VarChar(50)
+  codigo                String?           @db.VarChar(50)
+  mensagem              String
+  detalhe               String?
+  payload               Json?
+  recuperavel           Boolean           @default(true)
+  datahoracad           DateTime          @default(now()) @db.Timestamptz(6)
+  consultas_fiscais     consultas_fiscais @relation(fields: [consulta_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "consultas_erros_consulta_fk")
+
+  @@index([consulta_fiscal_chave, datahoracad(sort: Desc)], map: "consultas_erros_consulta_idx")
 }
 
-enum DocumentStatus {
-  AUTHORIZED
-  CANCELED
-  DENIED
-  PENDING
+model ctes_componentes_valor {
+  chave             BigInt        @id @default(autoincrement())
+  ativo             Boolean       @default(true)
+  identificador     String        @unique(map: "ctes_componentes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt       DateTime      @default(now()) @db.Timestamptz(6)
+  cte_detalhe_chave BigInt
+  nome              String        @db.VarChar(60)
+  valor             Decimal       @default(0) @db.Decimal(18, 2)
+  datahoracad       DateTime      @default(now()) @db.Timestamptz(6)
+  ctes_detalhes     ctes_detalhes @relation(fields: [cte_detalhe_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "ctes_componentes_cte_fk")
+
+  @@unique([cte_detalhe_chave, nome], map: "ctes_componentes_nome_uq")
 }
 
-enum ManifestStatus {
-  PENDING
-  AWARENESS
-  CONFIRMED
-  UNKNOWN
-  NOT_PERFORMED
+model ctes_detalhes {
+  chave                        BigInt                   @id @default(autoincrement())
+  ativo                        Boolean                  @default(true)
+  identificador                String                   @unique(map: "ctes_detalhes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                  DateTime                 @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave       BigInt                   @unique(map: "ctes_detalhes_documento_uq")
+  tipo_cte                     Int?                     @db.SmallInt
+  tipo_servico                 Int?                     @db.SmallInt
+  tomador_servico              Int?                     @db.SmallInt
+  modal                        Int?                     @db.SmallInt
+  codigo_municipio_inicio      String?                  @db.VarChar(7)
+  uf_inicio                    String?                  @db.Char(2)
+  codigo_municipio_fim         String?                  @db.VarChar(7)
+  uf_fim                       String?                  @db.Char(2)
+  produto_predominante         String?                  @db.VarChar(120)
+  outras_caracteristicas_carga String?                  @db.VarChar(120)
+  valor_carga                  Decimal                  @default(0) @db.Decimal(18, 2)
+  quantidade_carga             Decimal?                 @db.Decimal(18, 4)
+  unidade_carga                Int?                     @db.SmallInt
+  peso_bruto                   Decimal?                 @db.Decimal(18, 3)
+  cubagem                      Decimal?                 @db.Decimal(18, 4)
+  ciot                         String?                  @db.VarChar(20)
+  rntrc                        String?                  @db.VarChar(20)
+  valor_frete_peso             Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_frete_valor            Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_gris                   Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_pedagio                Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_despacho               Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_outros                 Decimal                  @default(0) @db.Decimal(18, 2)
+  valor_receber                Decimal                  @default(0) @db.Decimal(18, 2)
+  dados_modal                  Json                     @default("{}")
+  datahoracad                  DateTime                 @default(now()) @db.Timestamptz(6)
+  ctes_componentes_valor       ctes_componentes_valor[]
+  documentos_fiscais           documentos_fiscais       @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "ctes_detalhes_documento_fk")
+  ctes_percurso                ctes_percurso[]
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ctes_percurso {
+  chave             BigInt        @id @default(autoincrement())
+  ativo             Boolean       @default(true)
+  identificador     String        @unique(map: "ctes_percurso_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt       DateTime      @default(now()) @db.Timestamptz(6)
+  cte_detalhe_chave BigInt
+  ordem             Int           @db.SmallInt
+  uf                String        @db.Char(2)
+  datahoracad       DateTime      @default(now()) @db.Timestamptz(6)
+  ctes_detalhes     ctes_detalhes @relation(fields: [cte_detalhe_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "ctes_percurso_cte_fk")
+
+  @@unique([cte_detalhe_chave, ordem], map: "ctes_percurso_ordem_uq")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model distribuicao_dfe_controle {
+  chave                   BigInt    @id @default(autoincrement())
+  ativo                   Boolean   @default(true)
+  identificador           String    @unique(map: "distribuicao_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt             DateTime  @default(now()) @db.Timestamptz(6)
+  empresa_chave           BigInt
+  tipo_documento          String    @db.VarChar(10)
+  ambiente                Int       @default(1) @db.SmallInt
+  ultimo_nsu              String    @default("0") @db.VarChar(30)
+  max_nsu                 String    @default("0") @db.VarChar(30)
+  data_ultima_consulta    DateTime? @db.Timestamptz(6)
+  proxima_consulta_em     DateTime? @db.Timestamptz(6)
+  bloqueado_ate           DateTime? @db.Timestamptz(6)
+  codigo_ultimo_retorno   String?   @db.VarChar(10)
+  mensagem_ultimo_retorno String?
+  falhas_consecutivas     Int       @default(0)
+  datahoracad             DateTime  @default(now()) @db.Timestamptz(6)
+  empresas                empresas  @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "distribuicao_empresa_fk")
+
+  @@unique([empresa_chave, tipo_documento, ambiente], map: "distribuicao_empresa_tipo_ambiente_uq")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_arquivos {
+  chave                    BigInt             @id @default(autoincrement())
+  ativo                    Boolean            @default(true)
+  identificador            String             @unique(map: "documentos_arquivos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt              DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave   BigInt
+  tipo                     String             @db.VarChar(20)
+  original                 Boolean            @default(false)
+  nome_arquivo             String             @db.VarChar(255)
+  mime_type                String             @db.VarChar(100)
+  encoding                 String?            @db.VarChar(20)
+  compactado               Boolean            @default(false)
+  tamanho_original_bytes   BigInt
+  tamanho_armazenado_bytes BigInt
+  hash_sha256              String             @db.Char(64)
+  storage_provider         String             @default("banco") @db.VarChar(20)
+  storage_chave            String?            @db.VarChar(1000)
+  conteudo                 Bytes?
+  versao                   Int                @default(1) @db.SmallInt
+  datahoracad              DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais       documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_arquivos_documento_fk")
+
+  @@unique([documento_fiscal_chave, tipo, versao], map: "documentos_arquivos_versao_uq")
+  @@index([hash_sha256], map: "documentos_arquivos_hash_idx")
+}
+
+model documentos_etiquetas {
+  chave                  BigInt             @id @default(autoincrement())
+  ativo                  Boolean            @default(true)
+  identificador          String             @unique(map: "documentos_etiquetas_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt
+  etiqueta_chave         BigInt
+  usuario_chave          BigInt?
+  datahoracad            DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais     documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_etiquetas_documento_fk")
+  etiquetas              etiquetas          @relation(fields: [etiqueta_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_etiquetas_etiqueta_fk")
+  usuarios               usuarios?          @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_etiquetas_usuario_fk")
+
+  @@unique([documento_fiscal_chave, etiqueta_chave], map: "documentos_etiquetas_vinculo_uq")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_eventos {
+  chave                  BigInt                 @id @default(autoincrement())
+  ativo                  Boolean                @default(true)
+  identificador          String                 @unique(map: "documentos_eventos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime               @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt
+  usuario_chave          BigInt?
+  certificado_chave      BigInt?
+  tipo_evento            String                 @db.VarChar(40)
+  codigo_evento          String?                @db.VarChar(10)
+  sequencia              Int                    @default(1)
+  ambiente               Int                    @default(1) @db.SmallInt
+  protocolo              String?                @db.VarChar(80)
+  data_evento            DateTime?              @db.Timestamptz(6)
+  data_retorno           DateTime?              @db.Timestamptz(6)
+  status                 String                 @default("pendente") @db.VarChar(20)
+  codigo_retorno         String?                @db.VarChar(10)
+  motivo_retorno         String?
+  justificativa          String?
+  correcao               String?
+  previsao_entrega       DateTime?              @db.Date
+  indicador_aceitacao    Int?                   @db.SmallInt
+  xml_envio              String?
+  xml_retorno            String?
+  hash_sha256            String?                @db.Char(64)
+  dados_adicionais       Json                   @default("{}")
+  datahoracad            DateTime               @default(now()) @db.Timestamptz(6)
+  certificados_digitais  certificados_digitais? @relation(fields: [certificado_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_eventos_certificado_fk")
+  documentos_fiscais     documentos_fiscais     @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_eventos_documento_fk")
+  usuarios               usuarios?              @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_eventos_usuario_fk")
+
+  @@unique([documento_fiscal_chave, tipo_evento, sequencia], map: "documentos_eventos_sequencia_uq")
+  @@index([documento_fiscal_chave, data_evento(sort: Desc)], map: "eventos_documento_data_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_fiscais {
+  chave                                                                                          BigInt                     @id @default(autoincrement())
+  ativo                                                                                          Boolean                    @default(true)
+  identificador                                                                                  String                     @unique(map: "documentos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                                                                                    DateTime                   @default(now()) @db.Timestamptz(6)
+  empresa_chave                                                                                  BigInt
+  consulta_fiscal_chave                                                                          BigInt?
+  tipo_documento                                                                                 String                     @db.VarChar(10)
+  modelo                                                                                         String?                    @db.VarChar(4)
+  serie                                                                                          String?                    @db.VarChar(10)
+  subserie                                                                                       String?                    @db.VarChar(10)
+  numero                                                                                         String?                    @db.VarChar(30)
+  chave_acesso                                                                                   String?                    @db.VarChar(60)
+  codigo_numerico                                                                                String?                    @db.VarChar(20)
+  nsu                                                                                            String?                    @db.VarChar(30)
+  numero_recibo                                                                                  String?                    @db.VarChar(50)
+  protocolo_autorizacao                                                                          String?                    @db.VarChar(80)
+  ambiente                                                                                       Int                        @default(1) @db.SmallInt
+  versao_leiaute                                                                                 String?                    @db.VarChar(10)
+  tipo_emissao                                                                                   Int?                       @db.SmallInt
+  finalidade                                                                                     Int?                       @db.SmallInt
+  processo_emissao                                                                               Int?                       @db.SmallInt
+  versao_aplicativo                                                                              String?                    @db.VarChar(30)
+  natureza_operacao                                                                              String?                    @db.VarChar(180)
+  direcao                                                                                        String                     @db.VarChar(10)
+  data_emissao                                                                                   DateTime?                  @db.Timestamptz(6)
+  data_saida_entrada                                                                             DateTime?                  @db.Timestamptz(6)
+  data_autorizacao                                                                               DateTime?                  @db.Timestamptz(6)
+  competencia                                                                                    DateTime?                  @db.Date
+  data_cancelamento                                                                              DateTime?                  @db.Timestamptz(6)
+  status                                                                                         String                     @default("pendente") @db.VarChar(30)
+  codigo_status                                                                                  String?                    @db.VarChar(10)
+  motivo_status                                                                                  String?
+  manifestacao_status                                                                            String                     @default("pendente") @db.VarChar(30)
+  manifestacao_data                                                                              DateTime?                  @db.Timestamptz(6)
+  consumidor_final                                                                               Boolean?
+  presenca_comprador                                                                             Int?                       @db.SmallInt
+  intermediador                                                                                  Boolean?
+  indicador_pagamento                                                                            Int?                       @db.SmallInt
+  municipio_fato_gerador                                                                         String?                    @db.VarChar(7)
+  uf_embarque                                                                                    String?                    @db.Char(2)
+  local_embarque                                                                                 String?                    @db.VarChar(120)
+  valor_base_icms                                                                                Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_icms                                                                                     Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_icms_desonerado                                                                          Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_fcp                                                                                      Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_base_icms_st                                                                             Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_icms_st                                                                                  Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_fcp_st                                                                                   Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_fcp_st_retido                                                                            Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_produtos                                                                                 Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_servicos                                                                                 Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_frete                                                                                    Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_seguro                                                                                   Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_desconto                                                                                 Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_imposto_importacao                                                                       Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_ipi                                                                                      Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_ipi_devolvido                                                                            Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_pis                                                                                      Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_cofins                                                                                   Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_outras_despesas                                                                          Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_total                                                                                    Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_total_tributos                                                                           Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_iss                                                                                      Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_retencoes                                                                                Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_base_ibs_cbs                                                                             Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_ibs_uf                                                                                   Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_ibs_municipio                                                                            Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_cbs                                                                                      Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_credito_presumido_ibs                                                                    Decimal                    @default(0) @db.Decimal(18, 2)
+  valor_credito_presumido_cbs                                                                    Decimal                    @default(0) @db.Decimal(18, 2)
+  informacoes_fisco                                                                              String?
+  informacoes_complementares                                                                     String?
+  qr_code                                                                                        String?
+  url_consulta                                                                                   String?
+  origem_captura                                                                                 String                     @db.VarChar(20)
+  validado_schema                                                                                Boolean                    @default(false)
+  validado_assinatura                                                                            Boolean                    @default(false)
+  duplicado                                                                                      Boolean                    @default(false)
+  documento_substituido_chave                                                                    BigInt?
+  dados_adicionais                                                                               Json                       @default("{}")
+  data_captura                                                                                   DateTime                   @default(now()) @db.Timestamptz(6)
+  datahoracad                                                                                    DateTime                   @default(now()) @db.Timestamptz(6)
+  ctes_detalhes                                                                                  ctes_detalhes?
+  documentos_arquivos                                                                            documentos_arquivos[]
+  documentos_etiquetas                                                                           documentos_etiquetas[]
+  documentos_eventos                                                                             documentos_eventos[]
+  consultas_fiscais                                                                              consultas_fiscais?         @relation(fields: [consulta_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_consulta_fk")
+  empresas                                                                                       empresas                   @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_empresa_fk")
+  documentos_fiscais                                                                             documentos_fiscais?        @relation("documentos_fiscaisTodocumentos_fiscais", fields: [documento_substituido_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_substituido_fk")
+  other_documentos_fiscais                                                                       documentos_fiscais[]       @relation("documentos_fiscaisTodocumentos_fiscais")
+  documentos_itens                                                                               documentos_itens[]
+  documentos_pagamentos                                                                          documentos_pagamentos[]
+  documentos_parcelas                                                                            documentos_parcelas[]
+  documentos_participantes                                                                       documentos_participantes[]
+  documentos_referencias_documentos_referencias_documento_fiscal_chaveTodocumentos_fiscais       documentos_referencias[]   @relation("documentos_referencias_documento_fiscal_chaveTodocumentos_fiscais")
+  documentos_referencias_documentos_referencias_documento_referenciado_chaveTodocumentos_fiscais documentos_referencias[]   @relation("documentos_referencias_documento_referenciado_chaveTodocumentos_fiscais")
+  documentos_seguros                                                                             documentos_seguros[]
+  documentos_transporte                                                                          documentos_transporte?
+  nfse_detalhes                                                                                  nfse_detalhes?
+
+  @@index([chave_acesso], map: "documentos_chave_acesso_idx")
+  @@index([dados_adicionais], map: "documentos_dados_adicionais_gin_idx", type: Gin)
+  @@index([empresa_chave, tipo_documento, serie, numero], map: "documentos_numero_idx")
+  @@index([empresa_chave, valor_total], map: "documentos_valor_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model documentos_itens {
+  chave                     BigInt                      @id @default(autoincrement())
+  ativo                     Boolean                     @default(true)
+  identificador             String                      @unique(map: "documentos_itens_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt               DateTime                    @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave    BigInt
+  numero_item               Int
+  codigo_produto            String?                     @db.VarChar(80)
+  ean                       String?                     @db.VarChar(20)
+  ean_tributavel            String?                     @db.VarChar(20)
+  descricao                 String                      @db.VarChar(255)
+  ncm                       String?                     @db.VarChar(8)
+  cest                      String?                     @db.VarChar(7)
+  ex_tipi                   String?                     @db.VarChar(3)
+  cfop                      String?                     @db.VarChar(4)
+  codigo_beneficio_fiscal   String?                     @db.VarChar(20)
+  unidade_comercial         String?                     @db.VarChar(10)
+  quantidade_comercial      Decimal                     @default(0) @db.Decimal(18, 6)
+  valor_unitario_comercial  Decimal                     @default(0) @db.Decimal(18, 10)
+  unidade_tributavel        String?                     @db.VarChar(10)
+  quantidade_tributavel     Decimal                     @default(0) @db.Decimal(18, 6)
+  valor_unitario_tributavel Decimal                     @default(0) @db.Decimal(18, 10)
+  valor_bruto               Decimal                     @default(0) @db.Decimal(18, 2)
+  valor_frete               Decimal                     @default(0) @db.Decimal(18, 2)
+  valor_seguro              Decimal                     @default(0) @db.Decimal(18, 2)
+  valor_desconto            Decimal                     @default(0) @db.Decimal(18, 2)
+  valor_outras_despesas     Decimal                     @default(0) @db.Decimal(18, 2)
+  valor_total               Decimal                     @default(0) @db.Decimal(18, 2)
+  compoe_total              Boolean                     @default(true)
+  numero_pedido             String?                     @db.VarChar(30)
+  item_pedido               String?                     @db.VarChar(10)
+  numero_fci                String?                     @db.VarChar(36)
+  informacoes_adicionais    String?
+  dados_adicionais          Json                        @default("{}")
+  datahoracad               DateTime                    @default(now()) @db.Timestamptz(6)
+  documentos_fiscais        documentos_fiscais          @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_itens_documento_fk")
+  documentos_itens_tributos documentos_itens_tributos[]
+
+  @@unique([documento_fiscal_chave, numero_item], map: "documentos_itens_numero_uq")
+  @@index([documento_fiscal_chave, numero_item], map: "documentos_itens_documento_idx")
+  @@index([ncm, cfop])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_itens_tributos {
+  chave                    BigInt           @id @default(autoincrement())
+  ativo                    Boolean          @default(true)
+  identificador            String           @unique(map: "itens_tributos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt              DateTime         @default(now()) @db.Timestamptz(6)
+  documento_item_chave     BigInt
+  tributo                  String           @db.VarChar(20)
+  origem_mercadoria        Int?             @db.SmallInt
+  cst                      String?          @db.VarChar(5)
+  csosn                    String?          @db.VarChar(5)
+  classificacao_tributaria String?          @db.VarChar(20)
+  modalidade_base_calculo  Int?             @db.SmallInt
+  percentual_reducao       Decimal          @default(0) @db.Decimal(12, 6)
+  base_calculo             Decimal          @default(0) @db.Decimal(18, 2)
+  aliquota                 Decimal          @default(0) @db.Decimal(12, 6)
+  quantidade_base          Decimal?         @db.Decimal(18, 6)
+  valor_por_unidade        Decimal?         @db.Decimal(18, 10)
+  percentual_mva           Decimal          @default(0) @db.Decimal(12, 6)
+  percentual_diferimento   Decimal          @default(0) @db.Decimal(12, 6)
+  valor_diferido           Decimal          @default(0) @db.Decimal(18, 2)
+  valor_desonerado         Decimal          @default(0) @db.Decimal(18, 2)
+  motivo_desoneracao       Int?             @db.SmallInt
+  valor_tributo            Decimal          @default(0) @db.Decimal(18, 2)
+  valor_credito            Decimal          @default(0) @db.Decimal(18, 2)
+  dados_adicionais         Json             @default("{}")
+  datahoracad              DateTime         @default(now()) @db.Timestamptz(6)
+  documentos_itens         documentos_itens @relation(fields: [documento_item_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "itens_tributos_item_fk")
+
+  @@unique([documento_item_chave, tributo], map: "itens_tributos_tipo_uq")
+  @@index([documento_item_chave, tributo], map: "itens_tributos_item_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_pagamentos {
+  chave                  BigInt             @id @default(autoincrement())
+  ativo                  Boolean            @default(true)
+  identificador          String             @unique(map: "documentos_pagamentos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt
+  ordem                  Int                @default(1) @db.SmallInt
+  indicador_pagamento    Int?               @db.SmallInt
+  meio_pagamento         String?            @db.VarChar(5)
+  descricao_meio         String?            @db.VarChar(100)
+  valor                  Decimal            @default(0) @db.Decimal(18, 2)
+  troco                  Decimal            @default(0) @db.Decimal(18, 2)
+  cnpj_credenciadora     String?            @db.VarChar(14)
+  bandeira_cartao        String?            @db.VarChar(5)
+  autorizacao_cartao     String?            @db.VarChar(30)
+  tipo_integracao        Int?               @db.SmallInt
+  datahoracad            DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais     documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_pagamentos_documento_fk")
+
+  @@unique([documento_fiscal_chave, ordem], map: "documentos_pagamentos_ordem_uq")
+  @@index([documento_fiscal_chave], map: "documentos_pagamentos_documento_idx")
+}
+
+model documentos_parcelas {
+  chave                  BigInt             @id @default(autoincrement())
+  ativo                  Boolean            @default(true)
+  identificador          String             @unique(map: "documentos_parcelas_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt
+  numero                 String             @db.VarChar(30)
+  vencimento             DateTime?          @db.Date
+  valor                  Decimal            @default(0) @db.Decimal(18, 2)
+  datahoracad            DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais     documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_parcelas_documento_fk")
+
+  @@unique([documento_fiscal_chave, numero], map: "documentos_parcelas_numero_uq")
+  @@index([vencimento])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_participantes {
+  chave                   BigInt                   @id @default(autoincrement())
+  ativo                   Boolean                  @default(true)
+  identificador           String                   @unique(map: "documentos_participantes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt             DateTime                 @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave  BigInt
+  participante_chave      BigInt
+  endereco_chave          BigInt?
+  papel                   String                   @db.VarChar(30)
+  ordem                   Int                      @default(1) @db.SmallInt
+  datahoracad             DateTime                 @default(now()) @db.Timestamptz(6)
+  documentos_fiscais      documentos_fiscais       @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_participantes_documento_fk")
+  participantes_enderecos participantes_enderecos? @relation(fields: [endereco_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_participantes_endereco_fk")
+  participantes_fiscais   participantes_fiscais    @relation(fields: [participante_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_participantes_participante_fk")
+
+  @@unique([documento_fiscal_chave, papel, ordem], map: "documentos_participantes_papel_uq")
+  @@index([participante_chave, papel], map: "documentos_participantes_participante_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model documentos_referencias {
+  chave                                                                                      BigInt              @id @default(autoincrement())
+  ativo                                                                                      Boolean             @default(true)
+  identificador                                                                              String              @unique(map: "documentos_referencias_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                                                                                DateTime            @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave                                                                     BigInt
+  tipo_referencia                                                                            String              @db.VarChar(20)
+  documento_referenciado_chave                                                               BigInt?
+  chave_acesso                                                                               String?             @db.VarChar(60)
+  codigo_uf                                                                                  String?             @db.Char(2)
+  ano_mes                                                                                    String?             @db.Char(4)
+  cpf_cnpj                                                                                   String?             @db.VarChar(14)
+  modelo                                                                                     String?             @db.VarChar(4)
+  serie                                                                                      String?             @db.VarChar(10)
+  numero                                                                                     String?             @db.VarChar(30)
+  dados_adicionais                                                                           Json                @default("{}")
+  datahoracad                                                                                DateTime            @default(now()) @db.Timestamptz(6)
+  documentos_fiscais_documentos_referencias_documento_fiscal_chaveTodocumentos_fiscais       documentos_fiscais  @relation("documentos_referencias_documento_fiscal_chaveTodocumentos_fiscais", fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_referencias_documento_fk")
+  documentos_fiscais_documentos_referencias_documento_referenciado_chaveTodocumentos_fiscais documentos_fiscais? @relation("documentos_referencias_documento_referenciado_chaveTodocumentos_fiscais", fields: [documento_referenciado_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_referencias_referenciado_fk")
+}
+
+model documentos_seguros {
+  chave                  BigInt             @id @default(autoincrement())
+  ativo                  Boolean            @default(true)
+  identificador          String             @unique(map: "documentos_seguros_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt
+  responsavel            Int?               @db.SmallInt
+  seguradora             String?            @db.VarChar(180)
+  cnpj_seguradora        String?            @db.VarChar(14)
+  apolice                String?            @db.VarChar(60)
+  averbacoes             Json               @default("[]")
+  valor_carga            Decimal?           @db.Decimal(18, 2)
+  datahoracad            DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais     documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_seguros_documento_fk")
+}
+
+model documentos_transporte {
+  chave                  BigInt             @id @default(autoincrement())
+  ativo                  Boolean            @default(true)
+  identificador          String             @unique(map: "documentos_transporte_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt            DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave BigInt             @unique(map: "documentos_transporte_documento_uq")
+  modalidade_frete       Int?               @db.SmallInt
+  placa                  String?            @db.VarChar(10)
+  uf_veiculo             String?            @db.Char(2)
+  rntc                   String?            @db.VarChar(20)
+  vagao                  String?            @db.VarChar(20)
+  balsa                  String?            @db.VarChar(20)
+  quantidade_volumes     Decimal?           @db.Decimal(18, 3)
+  especie                String?            @db.VarChar(60)
+  marca                  String?            @db.VarChar(60)
+  numeracao              String?            @db.VarChar(60)
+  lacres                 Json               @default("[]")
+  peso_liquido           Decimal?           @db.Decimal(18, 3)
+  peso_bruto             Decimal?           @db.Decimal(18, 3)
+  dados_adicionais       Json               @default("{}")
+  datahoracad            DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais     documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "documentos_transporte_documento_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model empresas {
+  chave                     BigInt                      @id @default(autoincrement())
+  ativo                     Boolean                     @default(true)
+  identificador             String                      @unique(map: "empresas_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt               DateTime                    @default(now()) @db.Timestamptz(6)
+  cliente_chave             BigInt
+  tipo_pessoa               Int                         @default(2) @db.SmallInt
+  cpf_cnpj                  String                      @unique(map: "empresas_cpf_cnpj_uq") @db.VarChar(14)
+  razao_social              String                      @db.VarChar(180)
+  nome_fantasia             String?                     @db.VarChar(180)
+  inscricao_estadual        String?                     @db.VarChar(30)
+  inscricao_municipal       String?                     @db.VarChar(30)
+  suframa                   String?                     @db.VarChar(20)
+  regime_tributario         Int?                        @db.SmallInt
+  regime_pis_cofins         Int?                        @db.SmallInt
+  perfil_sped               String?                     @db.Char(1)
+  cnae_principal            String?                     @db.VarChar(7)
+  cnaes_secundarios         Json                        @default("[]")
+  email                     String?                     @db.VarChar(254)
+  email_fiscal              String?                     @db.VarChar(254)
+  telefone                  String?                     @db.VarChar(30)
+  representante_legal       String?                     @db.VarChar(180)
+  cpf_representante         String?                     @db.VarChar(11)
+  contador_nome             String?                     @db.VarChar(180)
+  contador_cpf_cnpj         String?                     @db.VarChar(14)
+  contador_crc              String?                     @db.VarChar(30)
+  contador_email            String?                     @db.VarChar(254)
+  logradouro                String?                     @db.VarChar(180)
+  numero                    String?                     @db.VarChar(20)
+  complemento               String?                     @db.VarChar(100)
+  bairro                    String?                     @db.VarChar(100)
+  codigo_municipio          String?                     @db.VarChar(7)
+  municipio                 String?                     @db.VarChar(120)
+  uf                        String?                     @db.Char(2)
+  cep                       String?                     @db.VarChar(8)
+  codigo_pais               String                      @default("1058") @db.VarChar(4)
+  pais                      String                      @default("Brasil") @db.VarChar(80)
+  monitorar_nfe             Boolean                     @default(true)
+  monitorar_cte             Boolean                     @default(true)
+  monitorar_nfse            Boolean                     @default(false)
+  monitorar_mdfe            Boolean                     @default(false)
+  manifestacao_automatica   String                      @default("desativada") @db.VarChar(30)
+  status_fiscal             String                      @default("pendente_certificado") @db.VarChar(30)
+  datahoracad               DateTime                    @default(now()) @db.Timestamptz(6)
+  auditoria                 auditoria[]
+  certificados_digitais     certificados_digitais[]
+  chaves_api                chaves_api[]
+  consultas_fiscais         consultas_fiscais[]
+  distribuicao_dfe_controle distribuicao_dfe_controle[]
+  documentos_fiscais        documentos_fiscais[]
+  clientes                  clientes                    @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "empresas_cliente_fk")
+  exportacoes               exportacoes[]
+  integracoes               integracoes[]
+
+  @@index([cliente_chave, ativo], map: "empresas_cliente_ativo_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model etiquetas {
+  chave                BigInt                 @id @default(autoincrement())
+  ativo                Boolean                @default(true)
+  identificador        String                 @unique(map: "etiquetas_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt          DateTime               @default(now()) @db.Timestamptz(6)
+  cliente_chave        BigInt
+  nome                 String                 @db.VarChar(60)
+  cor                  String?                @db.Char(7)
+  datahoracad          DateTime               @default(now()) @db.Timestamptz(6)
+  documentos_etiquetas documentos_etiquetas[]
+  clientes             clientes               @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "etiquetas_cliente_fk")
+
+  @@unique([cliente_chave, nome], map: "etiquetas_nome_uq")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model exportacoes {
+  chave                 BigInt    @id @default(autoincrement())
+  ativo                 Boolean   @default(true)
+  identificador         String    @unique(map: "exportacoes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt           DateTime  @default(now()) @db.Timestamptz(6)
+  cliente_chave         BigInt
+  empresa_chave         BigInt?
+  usuario_chave         BigInt
+  formato               String    @db.VarChar(20)
+  filtros               Json      @default("{}")
+  status                String    @default("pendente") @db.VarChar(20)
+  quantidade_documentos Int       @default(0)
+  storage_chave         String?   @db.VarChar(1000)
+  tamanho_bytes         BigInt?
+  hash_sha256           String?   @db.Char(64)
+  expira_em             DateTime? @db.Timestamptz(6)
+  mensagem_erro         String?
+  iniciada_em           DateTime? @db.Timestamptz(6)
+  finalizada_em         DateTime? @db.Timestamptz(6)
+  datahoracad           DateTime  @default(now()) @db.Timestamptz(6)
+  clientes              clientes  @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "exportacoes_cliente_fk")
+  empresas              empresas? @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "exportacoes_empresa_fk")
+  usuarios              usuarios  @relation(fields: [usuario_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "exportacoes_usuario_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model integracoes {
+  chave                      BigInt              @id @default(autoincrement())
+  ativo                      Boolean             @default(true)
+  identificador              String              @unique(map: "integracoes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                DateTime            @default(now()) @db.Timestamptz(6)
+  cliente_chave              BigInt?
+  empresa_chave              BigInt?
+  tipo                       String              @db.VarChar(30)
+  nome                       String              @db.VarChar(100)
+  endpoint                   String?
+  autenticacao_criptografada String?
+  configuracao               Json                @default("{}")
+  timeout_ms                 Int                 @default(60000)
+  tentativas_maximas         Int                 @default(3)
+  ultimo_sucesso_em          DateTime?           @db.Timestamptz(6)
+  ultimo_erro_em             DateTime?           @db.Timestamptz(6)
+  mensagem_ultimo_erro       String?
+  datahoracad                DateTime            @default(now()) @db.Timestamptz(6)
+  consultas_fiscais          consultas_fiscais[]
+  clientes                   clientes?           @relation(fields: [cliente_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "integracoes_cliente_fk")
+  empresas                   empresas?           @relation(fields: [empresa_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "integracoes_empresa_fk")
+
+  @@index([empresa_chave, tipo, ativo], map: "integracoes_empresa_tipo_idx")
+}
+
+model nfse_detalhes {
+  chave                       BigInt             @id @default(autoincrement())
+  ativo                       Boolean            @default(true)
+  identificador               String             @unique(map: "nfse_detalhes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt                 DateTime           @default(now()) @db.Timestamptz(6)
+  documento_fiscal_chave      BigInt             @unique(map: "nfse_detalhes_documento_uq")
+  numero_rps                  String?            @db.VarChar(30)
+  serie_rps                   String?            @db.VarChar(10)
+  tipo_rps                    String?            @db.VarChar(10)
+  data_emissao_rps            DateTime?          @db.Timestamptz(6)
+  numero_lote                 String?            @db.VarChar(30)
+  codigo_verificacao          String?            @db.VarChar(50)
+  local_incidencia            String?            @db.VarChar(7)
+  municipio_prestacao         String?            @db.VarChar(7)
+  item_lista_servico          String?            @db.VarChar(10)
+  codigo_tributacao_municipio String?            @db.VarChar(30)
+  cnae                        String?            @db.VarChar(7)
+  discriminacao               String?
+  natureza_operacao           Int?               @db.SmallInt
+  exigibilidade_iss           Int?               @db.SmallInt
+  iss_retido                  Boolean?
+  responsavel_retencao        Int?               @db.SmallInt
+  valor_deducoes              Decimal            @default(0) @db.Decimal(18, 2)
+  valor_base_calculo          Decimal            @default(0) @db.Decimal(18, 2)
+  aliquota_iss                Decimal            @default(0) @db.Decimal(12, 6)
+  valor_iss                   Decimal            @default(0) @db.Decimal(18, 2)
+  valor_iss_retido            Decimal            @default(0) @db.Decimal(18, 2)
+  valor_inss                  Decimal            @default(0) @db.Decimal(18, 2)
+  valor_ir                    Decimal            @default(0) @db.Decimal(18, 2)
+  valor_csll                  Decimal            @default(0) @db.Decimal(18, 2)
+  valor_pis                   Decimal            @default(0) @db.Decimal(18, 2)
+  valor_cofins                Decimal            @default(0) @db.Decimal(18, 2)
+  outras_retencoes            Decimal            @default(0) @db.Decimal(18, 2)
+  valor_liquido               Decimal            @default(0) @db.Decimal(18, 2)
+  datahoracad                 DateTime           @default(now()) @db.Timestamptz(6)
+  documentos_fiscais          documentos_fiscais @relation(fields: [documento_fiscal_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "nfse_detalhes_documento_fk")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model participantes_enderecos {
+  chave                    BigInt                     @id @default(autoincrement())
+  ativo                    Boolean                    @default(true)
+  identificador            String                     @unique(map: "participantes_enderecos_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt              DateTime                   @default(now()) @db.Timestamptz(6)
+  participante_chave       BigInt
+  tipo                     String                     @default("fiscal") @db.VarChar(20)
+  logradouro               String?                    @db.VarChar(180)
+  numero                   String?                    @db.VarChar(20)
+  complemento              String?                    @db.VarChar(100)
+  bairro                   String?                    @db.VarChar(100)
+  codigo_municipio         String?                    @db.VarChar(7)
+  municipio                String?                    @db.VarChar(120)
+  uf                       String?                    @db.Char(2)
+  cep                      String?                    @db.VarChar(8)
+  codigo_pais              String?                    @db.VarChar(4)
+  pais                     String?                    @db.VarChar(80)
+  telefone                 String?                    @db.VarChar(30)
+  datahoracad              DateTime                   @default(now()) @db.Timestamptz(6)
+  documentos_participantes documentos_participantes[]
+  participantes_fiscais    participantes_fiscais      @relation(fields: [participante_chave], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "participantes_enderecos_participante_fk")
+
+  @@index([participante_chave, tipo], map: "participantes_enderecos_participante_idx")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model participantes_fiscais {
+  chave                    BigInt                     @id @default(autoincrement())
+  ativo                    Boolean                    @default(true)
+  identificador            String                     @unique(map: "participantes_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt              DateTime                   @default(now()) @db.Timestamptz(6)
+  tipo_pessoa              Int?                       @db.SmallInt
+  cpf_cnpj                 String?                    @db.VarChar(14)
+  id_estrangeiro           String?                    @db.VarChar(30)
+  nome_razao_social        String                     @db.VarChar(180)
+  nome_fantasia            String?                    @db.VarChar(180)
+  inscricao_estadual       String?                    @db.VarChar(30)
+  indicador_ie             Int?                       @db.SmallInt
+  inscricao_municipal      String?                    @db.VarChar(30)
+  suframa                  String?                    @db.VarChar(20)
+  regime_tributario        Int?                       @db.SmallInt
+  email                    String?                    @db.VarChar(254)
+  telefone                 String?                    @db.VarChar(30)
+  datahoracad              DateTime                   @default(now()) @db.Timestamptz(6)
+  documentos_participantes documentos_participantes[]
+  participantes_enderecos  participantes_enderecos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model usuarios {
+  chave                 BigInt                  @id @default(autoincrement())
+  ativo                 Boolean                 @default(true)
+  identificador         String                  @unique(map: "usuarios_identificador_uq") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  datahoraalt           DateTime                @default(now()) @db.Timestamptz(6)
+  chavecliente          BigInt
+  chavecidade           BigInt
+  nome                  String                  @db.VarChar(150)
+  email                 String                  @db.VarChar(254)
+  login                 String                  @db.VarChar(100)
+  senha                 String
+  perfil_global         String                  @default("usuario") @db.VarChar(20)
+  telefone              String?                 @db.VarChar(30)
+  idioma                String                  @default("pt-BR") @db.VarChar(10)
+  ultimo_login_em       DateTime?               @db.Timestamptz(6)
+  tentativas_login      Int                     @default(0)
+  bloqueado_ate         DateTime?               @db.Timestamptz(6)
+  trocar_senha          Boolean                 @default(false)
+  datahoracad           DateTime                @default(now()) @db.Timestamptz(6)
+  auditoria             auditoria[]
+  certificados_digitais certificados_digitais[]
+  chaves_api            chaves_api[]
+  compartilhamentos     compartilhamentos[]
+  consultas_fiscais     consultas_fiscais[]
+  documentos_etiquetas  documentos_etiquetas[]
+  documentos_eventos    documentos_eventos[]
+  exportacoes           exportacoes[]
+  cidades               cidades                 @relation(fields: [chavecidade], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "usuarios_cidade_fk")
+  clientes              clientes                @relation(fields: [chavecliente], references: [chave], onDelete: NoAction, onUpdate: NoAction, map: "usuarios_cliente_fk")
+
+  @@index([chavecliente, ativo], map: "usuarios_cliente_idx")
+}
+
+
+// *** WARNING ***
+// 
+// These constraints are not supported by Prisma Client, because Prisma currently does not fully support check constraints. Read more: https://pris.ly/d/check-constraints
+//   - Model: "app_config", constraint: "app_config_ambiente_ck"
+//   - Model: "app_config", constraint: "app_config_storage_ck"
+//   - Model: "app_config", constraint: "app_config_upload_ck"
+//   - Model: "app_config", constraint: "app_config_zip_ck"
+//   - Model: "auditoria", constraint: "auditoria_resultado_ck"
+//   - Model: "certificados_digitais", constraint: "certificados_status_ck"
+//   - Model: "certificados_digitais", constraint: "certificados_tipo_ck"
+//   - Model: "cidades", constraint: "cidades_codigo_ibge_ck"
+//   - Model: "cidades", constraint: "cidades_uf_ck"
+//   - Model: "clientes", constraint: "clientes_armazenamento_ck"
+//   - Model: "clientes", constraint: "clientes_documento_ck"
+//   - Model: "clientes", constraint: "clientes_tipo_ck"
+//   - Model: "compartilhamentos", constraint: "compartilhamentos_downloads_ck"
+//   - Model: "consultas_fiscais", constraint: "consultas_ambiente_ck"
+//   - Model: "consultas_fiscais", constraint: "consultas_contadores_ck"
+//   - Model: "consultas_fiscais", constraint: "consultas_origem_ck"
+//   - Model: "consultas_fiscais", constraint: "consultas_status_ck"
+//   - Model: "consultas_fiscais", constraint: "consultas_tipo_ck"
+//   - Model: "ctes_percurso", constraint: "ctes_percurso_ordem_ck"
+//   - Model: "distribuicao_dfe_controle", constraint: "distribuicao_ambiente_ck"
+//   - Model: "distribuicao_dfe_controle", constraint: "distribuicao_falhas_ck"
+//   - Model: "distribuicao_dfe_controle", constraint: "distribuicao_tipo_ck"
+//   - Model: "documentos_arquivos", constraint: "documentos_arquivos_conteudo_ck"
+//   - Model: "documentos_arquivos", constraint: "documentos_arquivos_provider_ck"
+//   - Model: "documentos_arquivos", constraint: "documentos_arquivos_tamanho_ck"
+//   - Model: "documentos_arquivos", constraint: "documentos_arquivos_tipo_ck"
+//   - Model: "documentos_arquivos", constraint: "documentos_arquivos_versao_ck"
+//   - Model: "documentos_eventos", constraint: "documentos_eventos_ambiente_ck"
+//   - Model: "documentos_eventos", constraint: "documentos_eventos_sequencia_ck"
+//   - Model: "documentos_eventos", constraint: "documentos_eventos_status_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_ambiente_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_chave_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_direcao_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_manifestacao_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_origem_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_status_ck"
+//   - Model: "documentos_fiscais", constraint: "documentos_tipo_ck"
+//   - Model: "documentos_itens", constraint: "documentos_itens_numero_ck"
+//   - Model: "documentos_itens_tributos", constraint: "itens_tributos_tipo_ck"
+//   - Model: "documentos_pagamentos", constraint: "documentos_pagamentos_ordem_ck"
+//   - Model: "documentos_participantes", constraint: "documentos_participantes_ordem_ck"
+//   - Model: "documentos_participantes", constraint: "documentos_participantes_papel_ck"
+//   - Model: "documentos_referencias", constraint: "documentos_referencias_tipo_ck"
+//   - Model: "empresas", constraint: "empresas_documento_ck"
+//   - Model: "empresas", constraint: "empresas_manifestacao_ck"
+//   - Model: "empresas", constraint: "empresas_status_ck"
+//   - Model: "empresas", constraint: "empresas_tipo_pessoa_ck"
+//   - Model: "empresas", constraint: "empresas_uf_ck"
+//   - Model: "etiquetas", constraint: "etiquetas_cor_ck"
+//   - Model: "exportacoes", constraint: "exportacoes_formato_ck"
+//   - Model: "exportacoes", constraint: "exportacoes_quantidade_ck"
+//   - Model: "exportacoes", constraint: "exportacoes_status_ck"
+//   - Model: "integracoes", constraint: "integracoes_tentativas_ck"
+//   - Model: "integracoes", constraint: "integracoes_timeout_ck"
+//   - Model: "integracoes", constraint: "integracoes_tipo_ck"
+//   - Model: "participantes_enderecos", constraint: "participantes_enderecos_tipo_ck"
+//   - Model: "participantes_fiscais", constraint: "participantes_documento_ck"
+//   - Model: "participantes_fiscais", constraint: "participantes_tipo_pessoa_ck"
+//   - Model: "usuarios", constraint: "usuarios_perfil_ck"
+//   - Model: "usuarios", constraint: "usuarios_tentativas_ck"
+// 
+// These indexes are not supported by Prisma Client, because Prisma currently does not fully support expression indexes. Read more: https://pris.ly/d/expression-indexes
+//   - Model: "cidades", constraint: "cidades_nome_uf_idx"
+//   - Model: "documentos_itens", constraint: "documentos_itens_descricao_idx"
+//   - Model: "participantes_fiscais", constraint: "participantes_nome_idx"
+//   - Model: "usuarios", constraint: "usuarios_email_uq"
+//   - Model: "usuarios", constraint: "usuarios_login_uq"
+// 
+
